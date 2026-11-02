@@ -12,8 +12,9 @@ import {
   type ForwardedRef
 } from 'react';
 import { readDelivery, releaseShape, type DeliveryInput } from './delivery.ts';
-import { createPlayer, type MaskoHandle, type MountOptions } from './mount.ts';
-import type { MaskoEventName, MaskoEvents, MaskoListener, Player } from './player.ts';
+import type { ReleasePlayer } from './canvas-url.ts';
+import { createPlayer, mountMascot, type MaskoHandle, type MountOptions } from './mount.ts';
+import type { MaskoEventName, MaskoEvents, MaskoListener } from './player.ts';
 
 export type { MaskoHandle, MountOptions } from './mount.ts';
 export type { MaskoEvents, Position, ValueOptions } from './player.ts';
@@ -44,7 +45,8 @@ interface Subscription {
 }
 
 /** Which release a delivery is: a new release mounts a new player, new links only swap URLs. */
-function releaseKey(delivery: DeliveryInput): string {
+function releaseKey(delivery: DeliveryInput | undefined): string {
+  if (delivery === undefined) return '';
   try {
     return releaseShape(readDelivery(delivery).delivery);
   } catch {
@@ -54,15 +56,21 @@ function releaseKey(delivery: DeliveryInput): string {
 
 function MaskoPlayerView(props: MaskoPlayerProps, ref: ForwardedRef<MaskoHandle>) {
   const box = useRef<HTMLDivElement>(null);
-  const player = useRef<Player | null>(null);
+  const player = useRef<ReleasePlayer | null>(null);
   const latest = useRef(props);
   latest.current = props;
   const mounted = useRef<DeliveryInput | null>(null);
   const subscriptions = useRef(new Set<Subscription>());
-  const { clip } = props;
+  const { clip, url } = props;
+  const appKey = props.url ? props.appKey : undefined;
   const key = useMemo(
-    () => (clip ? `clip:${clip.webm ?? ''}|${clip.hevc ?? ''}` : releaseKey(props.delivery)),
-    [props.delivery, clip?.webm, clip?.hevc]
+    () =>
+      url
+        ? `url:${url}|${appKey}`
+        : clip
+          ? `clip:${clip.webm ?? ''}|${clip.hevc ?? ''}`
+          : releaseKey(props.delivery),
+    [props.delivery, clip?.webm, clip?.hevc, url, appKey]
   );
   const hasRefresh = props.getDelivery !== undefined;
 
@@ -75,10 +83,11 @@ function MaskoPlayerView(props: MaskoPlayerProps, ref: ForwardedRef<MaskoHandle>
       sound: p.sound,
       autoPlay: p.autoPlay
     };
-    const created = createPlayer(
-      element,
-      p.clip ? { ...common, clip: p.clip } : { ...common, delivery: p.delivery }
-    ).player;
+    // A canvas from its URL follows its newest release itself.
+    const created: ReleasePlayer = p.url
+      ? mountMascot(element, { url: p.url, appKey: p.appKey, sound: p.sound, autoPlay: p.autoPlay })
+      : createPlayer(element, p.clip ? { ...common, clip: p.clip } : { ...common, delivery: p.delivery! })
+          .player;
     for (const [event, prop] of EVENTS) {
       created.on(event, (e) => {
         const handler = latest.current[prop] as ((e: unknown) => void) | undefined;

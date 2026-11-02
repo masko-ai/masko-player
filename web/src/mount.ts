@@ -2,6 +2,7 @@
 // (rules.md 14). The player does not watch the person: the app sets
 // `behavior::pointerHover` and fires `action::click` itself (rules.md 3.5).
 
+import { playCanvas } from './canvas-url.ts';
 import { preferredFormats, type ClipFiles, type DeliveryInput } from './delivery.ts';
 import { DomSlot, DomSounds, DomStill, FetchLoader, clipLength, onGesture } from './dom.ts';
 import type { Value } from './engine.ts';
@@ -16,11 +17,23 @@ import {
 } from './player.ts';
 
 /**
- * What the player plays: a release `delivery`, or one animation's `clip`
- * files (`webm` and `hevc`), looped on its own.
+ * What the player plays: a release `delivery`; a canvas from its `url` with
+ * an `appKey`, whose newest release it asks for and follows; or one
+ * animation's `clip` files (`webm` and `hevc`), looped on its own.
  */
 export type MountOptions = MountCommon &
-  ({ delivery: DeliveryInput; clip?: undefined } | { clip: ClipFiles; delivery?: undefined });
+  (
+    | { delivery: DeliveryInput; clip?: undefined; url?: undefined }
+    | {
+        /** The canvas's URL: `https://api.masko.ai/v1/canvases/{canvasId}/delivery`. */
+        url: string;
+        /** An app key of the canvas's mascot (`masko_app_...`), safe in a page. */
+        appKey: string;
+        delivery?: undefined;
+        clip?: undefined;
+      }
+    | { clip: ClipFiles; delivery?: undefined; url?: undefined }
+  );
 
 interface MountCommon {
   /** Returns a fresh delivery of the same release, before signed links expire. */
@@ -82,7 +95,72 @@ function ensureStyle(doc: Document): void {
  * engine loads in the background and calls made meanwhile are kept.
  */
 export function mountMascot(element: HTMLElement, options: MountOptions): MaskoHandle {
+  if (options.url) return mountCanvas(element, options.url, options.appKey, options);
   return handleFor(createPlayer(element, options).player);
+}
+
+const INSTALL_KEY = 'masko-install-id';
+
+/**
+ * A canvas from its URL: one player per release, each in its own root. A
+ * newer release's root shows over the one on screen until its first clip is
+ * there, then takes its place.
+ */
+function mountCanvas(element: HTMLElement, url: string, appKey: string, options: MountCommon): MaskoHandle {
+  const win = element.ownerDocument.defaultView ?? window;
+  let shown: HTMLElement | null = null;
+  return playCanvas(
+    { url, appKey },
+    {
+      fetch: (target, init) => win.fetch(target, init),
+      setTimer: (fn, ms) => win.setTimeout(fn, ms),
+      clearTimer: (id) => win.clearTimeout(id as number),
+      installId: () => {
+        try {
+          const store = win.localStorage;
+          let id = store.getItem(INSTALL_KEY);
+          if (!id) {
+            id = win.crypto.randomUUID();
+            store.setItem(INSTALL_KEY, id);
+          }
+          return id;
+        } catch {
+          return null;
+        }
+      },
+      makePlayer: (delivery, getDelivery, over) => {
+        const below = over ? shown : null;
+        const made = createPlayer(element, {
+          delivery,
+          getDelivery,
+          sound: options.sound,
+          autoPlay: options.autoPlay
+        });
+        const style = made.root.style;
+        if (below) {
+          style.position = 'absolute';
+          style.left = `${below.offsetLeft}px`;
+          style.top = `${below.offsetTop}px`;
+          style.width = `${below.offsetWidth}px`;
+          style.height = `${below.offsetHeight}px`;
+        } else shown = made.root;
+        // The size the old root found for an element without a height.
+        const height = below?.style.height ?? '';
+        const aspectRatio = below?.style.aspectRatio ?? '';
+        return {
+          player: made.player,
+          settle: () => {
+            if (!below) return;
+            for (const name of ['position', 'left', 'top', 'width']) style.removeProperty(name);
+            style.height = height;
+            style.aspectRatio = aspectRatio;
+            shown = made.root;
+          }
+        };
+      }
+    },
+    { sound: options.sound }
+  );
 }
 
 /** The player and its DOM, for the React component. */

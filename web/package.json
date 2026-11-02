@@ -1,6 +1,6 @@
 {
   "name": "@masko/player",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Plays Masko mascots on the web. One engine holds every canvas rule; apps call set and fire.",
   "license": "MIT",
   "author": "Masko",

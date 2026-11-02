@@ -176,6 +176,11 @@ A failure to ask or to download is an `error` `refresh_failed`, with what
 failed; the player goes on with what it has. `destroy()` stops asking and
 leaves the kept files.
 
+On the web the page is not installed, so the player keeps nothing for
+offline play: the browser caches the files, a new page load asks again, and
+a newer release's mascot shows over the one on screen until its first clip
+is there (web/README.md, "A canvas from its URL").
+
 ## What the app sees
 
 The same names on every platform:

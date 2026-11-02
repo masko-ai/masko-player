@@ -1,3 +1,8 @@
+## 0.1.13
+
+- No change to the Flutter player. The web player can now play a canvas from
+  its URL with an app key, as the Swift player does.
+
 ## 0.1.12
 
 - No change to the Flutter API. The iOS player it carries can now play a

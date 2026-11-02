@@ -27,7 +27,7 @@ Install:
 - **Flutter**: `flutter pub add masko_player`
   ([flutter/README.md](flutter/README.md)); it carries the iOS and Android
   players.
-- **Android**: `implementation("ai.masko:player:0.1.12")` from Maven Central
+- **Android**: `implementation("ai.masko:player:0.1.13")` from Maven Central
   ([android/README.md](android/README.md)).
 
 The React Native and Flutter packages wrap the Swift and Kotlin players;

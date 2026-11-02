@@ -64,12 +64,38 @@ Without a build step, one file with the engine inlined,
 script that defines `window.MaskoPlayer`, not a module to import.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.12/dist/masko-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.13/dist/masko-player.js"></script>
 <script>
   const mascot = MaskoPlayer.mount(document.getElementById('mascot'), { delivery });
 </script>
 ```
 
+
+### A canvas from its URL
+
+A page or an app without a backend gives the player its canvas's URL and an
+**app key** of its mascot (`masko_app_...`). The key can only read that
+mascot's released canvases, so it is safe in a page:
+
+```ts
+mountMascot(element, {
+  url: 'https://api.masko.ai/v1/canvases/CANVAS_ID/delivery',
+  appKey: 'masko_app_...'
+});
+// React: <MaskoPlayer url="https://api.masko.ai/v1/canvases/CANVAS_ID/delivery" appKey="masko_app_..." />
+// Script tag: MaskoPlayer.mount(element, { url, appKey })
+```
+
+The player asks for the canvas's newest release (`target=web`, with a
+`Masko-Install-Id` the browser keeps, so the owner can count active copies),
+plays it, renews its links from that release's own URL, and asks again every
+hour. A newer release takes over where the initial pose's loop starts again:
+its mascot shows over the one on screen until its first clip is there.
+Values set before the first release comes choose its first pose; fires are
+dropped. When the first ask fails, it asks again after 30 seconds, then
+twice as long each time, up to an hour, reporting `error` `refresh_failed`.
+The browser keeps the files in its own cache: nothing is kept for offline
+play on the web.
 
 ### One animation
 
