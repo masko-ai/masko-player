@@ -7,7 +7,7 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@masko/player": "0.1.11"
+    "@masko/player": "0.1.12"
   },
   "devDependencies": {
     "electron": "45.2.1"
