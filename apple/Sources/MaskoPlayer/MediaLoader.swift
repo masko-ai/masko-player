@@ -23,12 +23,17 @@ struct ClipFile: Equatable {
 }
 
 /// Downloads files into a temporary folder and keeps the most recent few
-/// (the preload cache of player.md). Local files are used where they are.
+/// (the preload cache of player.md), or, for a canvas read from its URL, into
+/// its kept files, for good (`KeptRelease`). Local files are used where they
+/// are.
 @MainActor
 final class FileCache: MediaLoader {
     private let session: URLSession
     private let folder: URL
     private let capacity: Int
+    /// The kept files of a canvas read from its URL: named after each link's
+    /// path, never evicted nor deleted.
+    private let kept: URL?
     /// Keys from least to most recently used.
     private var order: [String] = []
     private var files: [String: URL] = [:]
@@ -41,10 +46,18 @@ final class FileCache: MediaLoader {
         self.session = session
         self.capacity = capacity
         folder = DownloadFolder.current.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        kept = nil
+    }
+
+    init(keptIn files: URL, session: URLSession = .shared) {
+        self.session = session
+        capacity = .max
+        folder = files
+        kept = files
     }
 
     deinit {
-        try? FileManager.default.removeItem(at: folder)
+        if kept == nil { try? FileManager.default.removeItem(at: folder) }
     }
 
     func file(_ url: URL, key: String, done: @escaping @MainActor (URL?) -> Void) {
@@ -53,9 +66,15 @@ final class FileCache: MediaLoader {
             return
         }
         guard !closed else { return }
+        // A kept file is named after its link's path, whichever key asks.
+        let key = kept == nil ? key : KeptRelease.name(url)
         if let local = files[key] {
             touch(key)
             done(local)
+            return
+        }
+        if let kept, FileManager.default.fileExists(atPath: kept.appendingPathComponent(key).path) {
+            done(kept.appendingPathComponent(key))
             return
         }
         if waiting[key] != nil {
@@ -63,13 +82,23 @@ final class FileCache: MediaLoader {
             return
         }
         waiting[key] = [done]
-        let destination = folder.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+        let destination =
+            kept?.appendingPathComponent(key)
+            ?? folder.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
         let folder = self.folder
+        let keep = kept != nil
         let task = session.downloadTask(with: url) { temporary, response, _ in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 200
             let saved: URL? = {
                 guard let temporary, (200..<300).contains(status) else { return nil }
                 do {
+                    if keep {
+                        let size = (try? temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 } ?? 0
+                        let expected = response?.expectedContentLength ?? -1
+                        guard size > 0, expected < 0 || Int64(size) == expected else { return nil }
+                        try KeptRelease.place(temporary, at: destination)
+                        return destination
+                    }
                     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                     try FileManager.default.moveItem(at: temporary, to: destination)
                     return destination
@@ -88,10 +117,10 @@ final class FileCache: MediaLoader {
     private func finish(_ key: String, _ file: URL?) {
         downloads[key] = nil
         if closed {
-            if let file { try? FileManager.default.removeItem(at: file) }
+            if let file, kept == nil { try? FileManager.default.removeItem(at: file) }
             return
         }
-        if let file {
+        if let file, kept == nil {
             files[key] = file
             touch(key)
             evict()
@@ -101,6 +130,7 @@ final class FileCache: MediaLoader {
     }
 
     func image(_ url: URL, key: String, done: @escaping @MainActor (CGImage?) -> Void) {
+        let key = kept == nil ? key : KeptRelease.name(url)
         if let image = images[key] {
             done(image)
             return
@@ -150,8 +180,8 @@ final class FileCache: MediaLoader {
         }
     }
 
-    /// Cancels the downloads in flight and deletes every downloaded file. The
-    /// cache gives nothing afterwards.
+    /// Cancels the downloads in flight and deletes every downloaded file, but
+    /// kept files. The cache gives nothing afterwards.
     func clear() {
         closed = true
         downloads.values.forEach { $0.cancel() }
@@ -160,7 +190,7 @@ final class FileCache: MediaLoader {
         files = [:]
         order = []
         images = [:]
-        try? FileManager.default.removeItem(at: folder)
+        if kept == nil { try? FileManager.default.removeItem(at: folder) }
     }
 }
 

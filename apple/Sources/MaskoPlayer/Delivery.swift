@@ -58,6 +58,8 @@ struct Delivery {
     }
 
     var edges: [String: Edge]
+    /// The pose the mascot starts on.
+    var initialNode: String?
     /// Each pose's `transparentThumbnailUrl`.
     var stills: [String: URL]
     var autoPlay: Bool
@@ -105,6 +107,7 @@ struct Delivery {
             stills[n.id] = n.transparentThumbnailUrl?.url
         }
         self.stills = stills
+        initialNode = wire.runtimeGraph.initialNode?.value
         autoPlay = wire.runtimeGraph.autoPlay?.value ?? true
         if let access = wire.deliveryAccess?.value, access.urlMode?.value == "signed" {
             expiresAt = access.signedUrlExpiresAt?.value.flatMap(Delivery.date)
@@ -217,6 +220,7 @@ struct Delivery {
     }
 
     private struct Graph: Decodable {
+        var initialNode: Lenient<String>?
         var autoPlay: Lenient<Bool>?
         var nodes: [Node]
         var edges: [WireEdge]

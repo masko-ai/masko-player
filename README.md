@@ -27,7 +27,7 @@ Install:
 - **Flutter**: `flutter pub add masko_player`
   ([flutter/README.md](flutter/README.md)); it carries the iOS and Android
   players.
-- **Android**: `implementation("ai.masko:player:0.1.11")` from Maven Central
+- **Android**: `implementation("ai.masko:player:0.1.12")` from Maven Central
   ([android/README.md](android/README.md)).
 
 The React Native and Flutter packages wrap the Swift and Kotlin players;
@@ -37,6 +37,12 @@ Every player reads a release delivery: the `delivery` object of the Masko
 API's `GET /v1/canvases/{canvasId}/releases/{releaseId}/delivery`, with
 `target=web`, `target=apple` or `target=android` for the files that
 platform plays.
+
+On iPhone, iPad and Mac, an app without a backend can instead give the
+player its canvas's URL, `https://api.masko.ai/v1/canvases/{canvasId}/delivery`,
+and an app key of its mascot: the player asks for the latest release, keeps
+every file for offline play and switches to newer releases by itself
+(`spec/player.md`, "A canvas from its URL").
 
 A player also plays one animation on its own, from its file links (`webm`
 and `hevc` on the web, `hevc` on Apple, `stacked` on Android), looped as one

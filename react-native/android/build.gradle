@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 
 group = 'ai.masko'
-version = '0.1.11'
+version = '0.1.12'
 
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
 apply from: expoModulesCorePlugin

@@ -30,9 +30,11 @@ Rust.
 The engine is the binary target `MaskoPlayerFFI`: SwiftPM downloads
 `MaskoPlayerFFI.xcframework.zip` from the GitHub release of that version
 and checks it against the checksum in `Package.swift`. The package ships a
-privacy manifest (`PrivacyInfo.xcprivacy`): no tracking, no data collected,
-and the system boot time (`ProcessInfo.systemUptime`, reason `35F9.1`) for
-the play-time clock.
+privacy manifest (`PrivacyInfo.xcprivacy`): no tracking; the system boot time
+(`ProcessInfo.systemUptime`, reason `35F9.1`) for the play-time clock; and,
+for a canvas read from its URL only, a random id the installed app keeps
+(`Masko-Install-Id`), not linked to the person, so the mascot's owner can
+count active copies.
 
 A Mac app built for Apple silicon and Intel at once from the command line,
 `swift build --arch arm64 --arch x86_64`, fails to link with Xcode 16's
@@ -63,6 +65,24 @@ player.set("heldContact", true, instant: true) // now; an Any State start cuts s
 MaskoView(player: player)                  // SwiftUI
 MaskoPlayerView(player: player)            // UIView on iOS, NSView on macOS
 ```
+
+An app without a backend plays its canvas from its URL with an app key of
+its mascot, which can only read that mascot's released canvases:
+
+```swift
+let player = MaskoPlayer(
+    url: URL(string: "https://api.masko.ai/v1/canvases/CANVAS_ID/delivery")!,
+    appKey: "masko_app_...")
+```
+
+The player asks for the latest release (`target=apple`, `formats=av1`),
+downloads every file once and keeps it in
+`Application Support/<bundle id>/MaskoPlayer/`, out of backups, so the mascot
+plays offline. It asks again at launch and every hour, and switches to a
+newer release once all its files are kept, where the first pose's loop starts
+again, keeping the values the app set (`../spec/player.md`, "A canvas from
+its URL"). Before the first delivery is in, values set choose the first pose
+and fires are dropped.
 
 One animation on its own, from its HEVC file: `MaskoPlayer(clip: url)`. The
 player reads the file's length and sound track and loops it as one pose
@@ -125,6 +145,8 @@ nothing and reports `clip_failed`.
   the right file at its next loop.
 - Downloads go in `tmp/MaskoPlayer/`. `destroy()` cancels the ones in
   flight and deletes the files; a launch deletes what earlier launches left.
+  A canvas read from its URL keeps its files instead, and `destroy()` leaves
+  them.
 
 ## Layout
 
@@ -137,7 +159,9 @@ nothing and reports `clip_failed`.
 - `Delivery.swift`: the delivery fields the player reads itself (files,
   sounds, movement, stills, the poses each edge joins, link expiry).
 - `MediaLoader.swift`: downloads files into a small cache, keyed by edge and
-  size so a refreshed link reuses them.
+  size so a refreshed link reuses them, or into a canvas's kept files.
+- `KeptRelease.swift`: a canvas read from its URL: the request with the app
+  key, the kept files and the kept release.
 - `MaskoPlayerView.swift`: the view, and which view shows a player.
 - `Sounds.swift`, `Clock.swift`, `MaskoView.swift`.
 - `PrivacyInfo.xcprivacy`: the privacy manifest, a resource of the target.

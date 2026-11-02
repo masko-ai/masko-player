@@ -143,6 +143,39 @@ it showed. When no length can be read, nothing plays and the player reports
 except `play` and `pause`, which decide whether it starts. `getDelivery`
 does not apply: the links are the app's.
 
+## A canvas from its URL
+
+An app without a backend gives the player its canvas's URL,
+`https://api.masko.ai/v1/canvases/{canvasId}/delivery`, and an **app key**
+of its mascot (`masko_app_...`), which can only read that mascot's released
+canvases. The player then does what a backend would:
+
+1. **Asks.** `GET` the URL with `target` for its platform and its
+   `formats`, `Authorization: Bearer <app key>`, and `Masko-Install-Id`, a
+   random UUID the installed app keeps, so the owner can count active copies.
+   The answer's `data.delivery` is the canvas's latest release.
+2. **Keeps.** Every link of the release's graph (clips, stills, sounds) is
+   downloaded once and kept for good, named after the link's path: the path
+   never changes, only the signature does. A file is complete or not there.
+   The release is kept, for the next launch too, once all its files are.
+3. **Plays.** At launch, the kept release plays at once, also offline, and
+   the files no kept release plays are deleted first. With nothing kept, the
+   first delivery plays from its links while its files are kept; values set
+   before it comes choose the first pose, fires are dropped, and a delivery
+   that does not come is asked for again 30 seconds later, then twice as
+   long each time, up to an hour.
+4. **Updates.** It asks again at once and every hour. The same release only
+   renews its links (`updateDelivery`). A newer release is checked by the
+   engine (a refusal is reported, the release playing goes on) and kept
+   whole, then takes over where the initial pose's loop would start again:
+   the picture on screen stays until the new release's first clip has
+   decoded, its engine starts at play time 0, and the values the app set are
+   set again. Before the start, it simply gives the first frame.
+
+A failure to ask or to download is an `error` `refresh_failed`, with what
+failed; the player goes on with what it has. `destroy()` stops asking and
+leaves the kept files.
+
 ## What the app sees
 
 The same names on every platform:

@@ -6,8 +6,23 @@
 	<false/>
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
+	<!-- A canvas read from its URL sends Masko-Install-Id, a random id this copy of the app
+	     keeps, so the mascot's owner can count active copies (KeptRelease.swift). -->
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+	</array>
 	<!-- ProcessInfo.systemUptime runs the play-time clock and its timers (Clock.swift). -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>

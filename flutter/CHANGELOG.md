@@ -1,3 +1,8 @@
+## 0.1.12
+
+- No change to the Flutter API. The iOS player it carries can now play a
+  canvas from its URL with an app key (`MaskoPlayer(url:appKey:)` in Swift).
+
 ## 0.1.11
 
 - No change to the players. The package is now published from the

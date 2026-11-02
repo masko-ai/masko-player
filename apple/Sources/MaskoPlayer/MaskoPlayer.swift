@@ -8,6 +8,8 @@ import Foundation
 ///
 /// ```swift
 /// let player = MaskoPlayer(delivery: json)
+/// // or a canvas read from its URL with an app key, kept on the device:
+/// // MaskoPlayer(url: URL(string: "https://api.masko.ai/v1/canvases/<id>/delivery")!, appKey: "masko_app_...")
 /// player.set("working", true)
 /// player.fire("celebrate")
 /// player.onEvent = { event in print(event) }
@@ -139,6 +141,31 @@ public final class MaskoPlayer {
     private var wake: Cancellation?
     private var refreshTimer: Cancellation?
 
+    /// A canvas read from its URL with an app key (player.md, "A canvas from
+    /// its URL").
+    private var release: KeptRelease?
+    /// A newer release whose files are all kept, waiting for the initial
+    /// pose's loop to start again.
+    private var waiting: Data?
+    /// The restart of the initial pose's loop the waiting release takes over
+    /// from, once the commands running now are done.
+    private var takeOver: (edge: String, rate: Double)?
+    private var checkTimer: Cancellation?
+    /// The check running now, for tests.
+    private(set) var checking: Task<Void, Never>?
+    /// How long until a failed first check asks again; it doubles up to
+    /// `checkEvery`.
+    private var retry = refreshRetry
+    /// `autoPlay` came from the app (the initializer, `play` or `pause`);
+    /// otherwise the graph's applies once a delivery is in.
+    private var autoPlayChosen = true
+    /// The values the app set, carried over to a newer release.
+    private enum Value {
+        case bool(Bool)
+        case number(Double)
+    }
+    private var values: [String: Value] = [:]
+
     /// A clip or still asked for by the engine (or the first frame shown
     /// before the start, a poster).
     private struct Showing {
@@ -175,6 +202,8 @@ public final class MaskoPlayer {
     static let refreshLead: TimeInterval = 5 * 60
     /// How long after a failed refresh it asks again.
     static let refreshRetry: TimeInterval = 30
+    /// How often a canvas read from its URL asks for a newer release.
+    static let checkEvery: TimeInterval = 60 * 60
 
     /// Loads a release delivery (the `delivery` object of
     /// `GET /v1/canvases/{canvasId}/releases/{releaseId}/delivery`).
@@ -205,20 +234,79 @@ public final class MaskoPlayer {
         self.loader = loader
         self.sounds = sounds
         self.host = host
-        json = String(decoding: delivery, as: UTF8.self)
+        json = ""
+        self.autoPlay = autoPlay ?? true
+        autoPlayChosen = autoPlay != nil
+        load(delivery)
+        wireSlots()
+    }
+
+    /// Plays a canvas's latest release from its URL,
+    /// `https://api.masko.ai/v1/canvases/{canvasId}/delivery`, read with an
+    /// app key of its mascot (player.md, "A canvas from its URL"). Every file
+    /// is downloaded once and kept, so the mascot also plays offline. The
+    /// player asks for a newer release at once and every hour, keeps all its
+    /// files, then switches to it when the mascot's first pose starts its
+    /// loop again. Before the first delivery is in, values set choose the
+    /// first pose and fires are dropped.
+    public convenience init(url: URL, appKey: String, autoPlay: Bool? = nil) {
+        let release = KeptRelease(url: url, appKey: appKey)
+        self.init(
+            release: release, autoPlay: autoPlay, stage: AVStage(), loader: FileCache(keptIn: release.files),
+            sounds: AVSounds(), host: .real)
+        engine?.seed(seed: UInt64.random(in: 1...UInt64.max))
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.boot() }
+        }
+    }
+
+    init(
+        release: KeptRelease, autoPlay: Bool?, stage: Stage, loader: MediaLoader, sounds: SoundOutput,
+        host: PlayerHost
+    ) {
+        self.stage = stage
+        self.loader = loader
+        self.sounds = sounds
+        self.host = host
+        json = ""
+        self.release = release
+        self.autoPlay = autoPlay ?? true
+        autoPlayChosen = autoPlay != nil
+        wireSlots()
+        // Before anything plays: files of older releases go.
+        release.removeUnused()
+        if let kept = release.kept() {
+            load(kept)
+        }
+    }
+
+    /// Reads a release delivery for the engine and the player. A delivery the
+    /// engine refuses plays nothing, with the engine's own reason, as on every
+    /// platform: `unreadable` for text that is not JSON.
+    private func load(_ data: Data) {
+        json = String(decoding: data, as: UTF8.self)
         do {
             engine = try MaskoEngine(delivery: json)
-            self.delivery = try Delivery(json: delivery)
+            delivery = try Delivery(json: data)
+            refusal = nil
         } catch let LoadFailure.Refused(code, detail) {
-            // The engine's own reason, as on every platform: `unreadable`
-            // for text that is not JSON.
+            engine = nil
+            delivery = nil
             refusal = (code, detail)
         } catch {
             engine = nil
+            delivery = nil
             refusal = ("unreadable", String(describing: error))
         }
-        self.autoPlay = autoPlay ?? self.delivery?.autoPlay ?? true
-        wireSlots()
+        if !autoPlayChosen {
+            autoPlay = delivery?.autoPlay ?? true
+        }
+    }
+
+    /// A lone clip reading its length, or a canvas waiting for its first
+    /// delivery.
+    private var loading: Bool {
+        clip != nil || (release != nil && engine == nil && refusal == nil)
     }
 
     /// A player for one animation on its own: its HEVC file, with
@@ -261,6 +349,11 @@ public final class MaskoPlayer {
             readClip(clip)
             return
         }
+        if release != nil {
+            check()
+            // The first delivery plays once it is in.
+            if engine == nil, refusal == nil { return }
+        }
         if let refusal {
             emit(.error(code: refusal.code, detail: refusal.detail))
             return
@@ -295,12 +388,14 @@ public final class MaskoPlayer {
     /// straight into its target pose, skipping every transition clip and
     /// route, and a move plays its own clip (5.8).
     public func set(_ name: String, _ value: Bool, instant: Bool = false) {
+        hold(name, .bool(value))
         call { $0.setBool(name: name, value: value, instant: instant, now: $1) }
     }
 
     /// Holds a number until the next `set` of that name (rules.md 3.2),
     /// with `instant` as for a boolean.
     public func set(_ name: String, _ value: Double, instant: Bool = false) {
+        hold(name, .number(value))
         call { $0.setNumber(name: name, value: value, instant: instant, now: $1) }
     }
 
@@ -318,6 +413,7 @@ public final class MaskoPlayer {
     /// (rules.md 11.3).
     public func reset() {
         guard !destroyed, engine != nil else { return }
+        values = [:]
         if !started {
             // Nothing has played: forget the values set so far.
             engine = try? MaskoEngine(delivery: json)
@@ -332,14 +428,17 @@ public final class MaskoPlayer {
     /// Starts the mascot (once its first frame shows), or resumes it exactly
     /// where it paused.
     public func play() {
-        // A lone clip still reading its length starts once it can.
-        if clip != nil, !destroyed {
+        // A lone clip still reading its length, or a canvas waiting for its
+        // first delivery, starts once it can.
+        if loading, !destroyed {
             autoPlay = true
+            autoPlayChosen = true
             return
         }
         guard !destroyed, engine != nil else { return }
         if !started {
             autoPlay = true
+            autoPlayChosen = true
             if booted && firstFrameReady { start() }
             return
         }
@@ -354,6 +453,7 @@ public final class MaskoPlayer {
         guard !destroyed else { return }
         if !started {
             autoPlay = false
+            autoPlayChosen = true
             return
         }
         appPaused = true
@@ -440,6 +540,8 @@ public final class MaskoPlayer {
         pendingSounds = [:]
         wake?.cancel()
         refreshTimer?.cancel()
+        checkTimer?.cancel()
+        waiting = nil
         sounds.stop(onlyLooping: false)
         (stage as? AVStage)?.unload()
         (loader as? FileCache)?.clear()
@@ -492,6 +594,10 @@ public final class MaskoPlayer {
             for command in next(engine, now) {
                 execute(command)
             }
+            if let restart = takeOver {
+                takeOver = nil
+                if !switchRelease() { show(restart.edge, move: false, rate: restart.rate) }
+            }
         }
         draining = false
         prepareNext()
@@ -515,6 +621,11 @@ public final class MaskoPlayer {
         guard !destroyed else { return }
         switch command {
         case let .showClip(edge, kind, rate):
+            if waiting != nil, kind == .pose, restartsInitialLoop(edge) {
+                // A newer release takes over here, once these commands are done.
+                takeOver = (edge, rate)
+                return
+            }
             show(edge, move: kind == .move, rate: rate)
         case let .showStill(pose):
             showStill(pose)
@@ -869,5 +980,158 @@ public final class MaskoPlayer {
                 self.refresh(in: Self.refreshRetry)
             }
         }
+    }
+
+    // MARK: - A canvas from its URL
+
+    /// Remembers a value the app set, to carry it over to a newer release.
+    private func hold(_ name: String, _ value: Value) {
+        guard !destroyed else { return }
+        values[name] = value
+    }
+
+    private static func setCall(_ name: String, _ value: Value) -> Call {
+        switch value {
+        case let .bool(b): return { $0.setBool(name: name, value: b, instant: false, now: $1) }
+        case let .number(n): return { $0.setNumber(name: name, value: n, instant: false, now: $1) }
+        }
+    }
+
+    /// Asks the canvas URL for its latest release (player.md, "A canvas from
+    /// its URL"): the first delivery to play, fresh links for the release
+    /// playing, or a newer release, kept whole before it takes over. Then
+    /// again in an hour; a first delivery that does not come is asked for
+    /// again 30 seconds later, then less and less often.
+    @discardableResult
+    func check() -> Task<Void, Never> {
+        checkTimer?.cancel()
+        checkTimer = nil
+        let task = Task { @MainActor [weak self] in
+            guard let release = self?.release else { return }
+            do {
+                let latest = try await release.latest()
+                guard let self, !self.destroyed else { return }
+                let fresh = try Delivery(json: latest)
+                if self.engine == nil {
+                    // Nothing plays yet: this one plays now, from its links,
+                    // while every file is kept.
+                    self.first(latest)
+                    if self.engine != nil { try await release.keep(latest) }
+                } else if self.delivery?.sameRelease(as: fresh) == true {
+                    self.updateDelivery(latest)
+                    // Completes the kept files when some are missing.
+                    try await release.keep(latest)
+                } else if let refused = Self.refusal(of: latest) {
+                    // The release playing goes on.
+                    self.emit(.error(code: refused.code, detail: refused.detail))
+                } else {
+                    try await release.keep(latest)
+                    guard !self.destroyed else { return }
+                    self.waiting = latest
+                    if !self.started { self.switchRelease() }
+                }
+                self.retry = Self.refreshRetry
+                self.checkAgain(in: Self.checkEvery)
+            } catch {
+                guard let self, !self.destroyed else { return }
+                self.emit(.error(code: "refresh_failed", detail: String(describing: error)))
+                if self.engine == nil {
+                    self.checkAgain(in: self.retry)
+                    self.retry = min(self.retry * 2, Self.checkEvery)
+                } else {
+                    self.checkAgain(in: Self.checkEvery)
+                }
+            }
+        }
+        checking = task
+        return task
+    }
+
+    /// Why the engine refuses a delivery, if it does.
+    private static func refusal(of data: Data) -> (code: String, detail: String?)? {
+        do {
+            _ = try MaskoEngine(delivery: String(decoding: data, as: UTF8.self))
+            return nil
+        } catch let LoadFailure.Refused(code, detail) {
+            return (code, detail)
+        } catch {
+            return ("unreadable", String(describing: error))
+        }
+    }
+
+    private func checkAgain(in delay: TimeInterval) {
+        checkTimer?.cancel()
+        checkTimer = host.at(host.date().addingTimeInterval(delay)) { [weak self] in
+            self?.check()
+        }
+    }
+
+    /// The first delivery of a canvas read from its URL. The values the app
+    /// set meanwhile choose the first pose (rules.md 11.1).
+    private func first(_ data: Data) {
+        load(data)
+        engine?.seed(seed: UInt64.random(in: 1...UInt64.max))
+        if let refusal {
+            return emit(.error(code: refusal.code, detail: refusal.detail))
+        }
+        for c in values.map({ Self.setCall($0.key, $0.value) }) {
+            beforeStart.append(c)
+            send(c)
+        }
+        scheduleRefresh()
+        showPoster()
+    }
+
+    /// Whether this pose clip is the one on screen starting again on the
+    /// initial pose: the moment a newer release can take over unseen, since
+    /// its own start shows that pose too.
+    private func restartsInitialLoop(_ edge: String) -> Bool {
+        guard let v = visible, let s = shows[v], s.edge == edge, !s.move, !s.poster,
+            let e = delivery?.edges[edge], let pose = delivery?.initialNode
+        else { return false }
+        return e.source == pose && e.target == pose
+    }
+
+    /// Plays the waiting release from now on. Before the start it gives the
+    /// first frame; after it, it starts where the initial pose's loop would
+    /// have started again, the picture on screen staying until its first clip
+    /// swaps in, and the values the app set carry over. A release the engine
+    /// refuses is reported and the one playing goes on (false).
+    @discardableResult
+    private func switchRelease() -> Bool {
+        guard let data = waiting, !destroyed else { return false }
+        waiting = nil
+        let before = (json: json, engine: engine, delivery: delivery)
+        load(data)
+        guard let engine, refusal == nil else {
+            let refused = refusal
+            json = before.json
+            self.engine = before.engine
+            delivery = before.delivery
+            refusal = nil
+            if let refused { emit(.error(code: refused.code, detail: refused.detail)) }
+            return false
+        }
+        engine.seed(seed: UInt64.random(in: 1...UInt64.max))
+        failed = []
+        loopAhead = nil
+        pendingSounds = [:]
+        if !started {
+            for c in beforeStart {
+                _ = c(engine, 0)
+            }
+            if booted { showPoster() }
+            return true
+        }
+        sounds.stop(onlyLooping: true)
+        dropPending()
+        if let v = visible { shows[v] = nil }
+        still = nil
+        clock = PlayClock()
+        clock.run(at: host.uptime())
+        let carried = values.map { Self.setCall($0.key, $0.value) }
+        let start: Call = { engine, now in engine.start(now: now) }
+        queue.insert(contentsOf: [start] + carried, at: 0)
+        return true
     }
 }

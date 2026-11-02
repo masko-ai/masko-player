@@ -179,4 +179,43 @@ final class FileCacheTests: XCTestCase {
         XCTAssertEqual(got, local)
         XCTAssertTrue(StubServer.hits.isEmpty)
     }
+
+    // MARK: - Kept files (a canvas read from its URL)
+
+    func makeKept() -> (FileCache, URL) {
+        StubServer.reset()
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubServer.self]
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("masko-kept-cache-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
+        return (FileCache(keptIn: folder, session: URLSession(configuration: config)), folder)
+    }
+
+    func testAKeptFileIsNamedAfterItsPathAndOutlivesTheCache() async throws {
+        let (cache, folder) = makeKept()
+        let first = await fetch(cache, "https://cdn.test/r1/idle.mp4?Signature=a", key: "idle-loop")
+        let local = try XCTUnwrap(first)
+        let name = KeptRelease.name(URL(string: "https://cdn.test/r1/idle.mp4")!)
+        XCTAssertEqual(local, folder.appendingPathComponent(name))
+        XCTAssertEqual(String(decoding: try Data(contentsOf: local), as: UTF8.self), "bytes of /r1/idle.mp4")
+        cache.clear()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: local.path), "kept files stay")
+
+        // Another cache over the same folder, another signature: no download.
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubServer.self]
+        let again = FileCache(keptIn: folder, session: URLSession(configuration: config))
+        StubServer.reset()
+        let second = await fetch(again, "https://cdn.test/r1/idle.mp4?Signature=b", key: "other-key")
+        XCTAssertEqual(second, local)
+        XCTAssertEqual(StubServer.hits, [])
+    }
+
+    func testAKeptFileThatFailsIsNotKept() async {
+        let (cache, folder) = makeKept()
+        let local = await fetch(cache, "https://cdn.test/r1/missing.mp4", key: "gone")
+        XCTAssertNil(local)
+        XCTAssertEqual((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [], [])
+    }
 }

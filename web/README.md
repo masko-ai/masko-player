@@ -64,7 +64,7 @@ Without a build step, one file with the engine inlined,
 script that defines `window.MaskoPlayer`, not a module to import.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.11/dist/masko-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.12/dist/masko-player.js"></script>
 <script>
   const mascot = MaskoPlayer.mount(document.getElementById('mascot'), { delivery });
 </script>
