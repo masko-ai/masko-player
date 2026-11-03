@@ -174,6 +174,8 @@ export class Player {
   private voices: boolean;
   /** Waiting for the person's next gesture, after the browser refused a voice. */
   private voiceGesture: (() => void) | null = null;
+  /** Waits for the person's next gesture to start a blocked autoplay. */
+  private blockedGesture: (() => void) | null = null;
 
   readonly preview = {
     /** Editors and tools: cut to a pose at once (rules.md 13). */
@@ -240,9 +242,27 @@ export class Player {
       if (this.engine) this.start();
       return;
     }
+    this.unblock();
+    this.setHold('app', false);
+  }
+
+  /**
+   * Lifts a blocked autoplay, from inside a gesture: the slot that is free
+   * now is primed too, so the next clip starts without another one. The
+   * caller syncs.
+   */
+  private unblock(): void {
+    if (!this.holds.has('blocked')) return;
+    this.blockedGesture?.();
+    this.blockedGesture = null;
     this.host.blocked(false);
     this.holds.delete('blocked');
-    this.setHold('app', false);
+    const busy = new Set<number>();
+    if (this.screen.type === 'clip') busy.add(this.screen.showing.slot);
+    if (this.pending) busy.add(this.pending.slot);
+    this.host.slots.forEach((slot, i) => {
+      if (!busy.has(i)) slot.prime();
+    });
   }
 
   /** Stops play time, clips, timers and sounds; `set` and `fire` wait for `play`. */
@@ -350,6 +370,8 @@ export class Player {
     this.listeners.clear();
     this.voiceGesture?.();
     this.voiceGesture = null;
+    this.blockedGesture?.();
+    this.blockedGesture = null;
     this.host.dispose();
   }
 
@@ -776,9 +798,17 @@ export class Player {
           if (this.running()) this.playShowing(s);
           return;
         }
-        // Autoplay is blocked: the first frame with a tap-to-play overlay.
+        // Autoplay is blocked (iPhones in Low Power Mode refuse even muted
+        // video): the first frame with a tap-to-play overlay. A tap on it, or
+        // the person's next gesture anywhere on the page, starts it.
         this.host.blocked(true);
         this.setHold('blocked', true);
+        this.blockedGesture ??= this.host.onGesture(() => {
+          this.blockedGesture = null;
+          if (this.destroyed || !this.holds.has('blocked')) return;
+          this.unblock();
+          this.sync();
+        });
         return;
       }
       this.fail(s, attempt);

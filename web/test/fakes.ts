@@ -78,6 +78,15 @@ export class FakeSlot implements VideoSlot {
     this.playing = false;
   }
 
+  /** Times the slot was primed inside a gesture. */
+  primed = 0;
+
+  prime(): void {
+    if (this.playing || this.visible) return;
+    this.primed++;
+    this.log.push(`slot${this.id}:prime`);
+  }
+
   setVisible(on: boolean): void {
     this.visible = on;
     this.log.push(`slot${this.id}:${on ? 'show' : 'hide'}`);

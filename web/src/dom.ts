@@ -64,6 +64,19 @@ export class DomSlot implements VideoSlot {
     this.el.pause();
   }
 
+  prime(): void {
+    const el = this.el;
+    if (!el.paused || el.dataset.visible === 'true') return;
+    try {
+      // Safari lifts its gesture rule for this element on a play() inside a
+      // gesture; the pause right after keeps it still.
+      void el.play()?.catch(() => undefined);
+      el.pause();
+    } catch {
+      // Nothing to unlock.
+    }
+  }
+
   setVisible(on: boolean): void {
     this.el.style.opacity = on ? '1' : '0';
     this.el.dataset.visible = on ? 'true' : 'false';

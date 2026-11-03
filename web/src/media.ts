@@ -14,6 +14,12 @@ export interface VideoSlot {
   /** Plays at `rate`. Rejects with the browser's error: `NotAllowedError` when autoplay is blocked. */
   play(rate: number, muted: boolean): Promise<void>;
   pause(): void;
+  /**
+   * Called inside a gesture on a hidden slot: lets the browser start it later
+   * without one (iPhones in Low Power Mode refuse even muted video until a
+   * tap). Leaves it paused; does nothing while it plays or shows.
+   */
+  prime(): void;
   /** Shows or hides the slot at once, with no transition. */
   setVisible(on: boolean): void;
   /** Calls `fn` once, when a frame of the loaded file is decoded and about to be shown. */

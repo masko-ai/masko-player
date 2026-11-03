@@ -77,6 +77,7 @@ const STYLE_ID = 'masko-player-style';
 const CSS = `
 .masko-player{position:relative;width:100%;height:100%;overflow:visible;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 .masko-player>video,.masko-player>img.masko-still{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;margin:0;padding:0;border:0;background:transparent;transition:none}
+.masko-player>video::-webkit-media-controls-start-playback-button{display:none!important;-webkit-appearance:none}
 .masko-player>.masko-tap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding:0;border:0;background:transparent;cursor:pointer}
 .masko-player>.masko-tap[hidden]{display:none}
 .masko-player>.masko-tap>span{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.55);box-shadow:0 2px 8px rgba(0,0,0,.25)}

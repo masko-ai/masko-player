@@ -64,7 +64,7 @@ Without a build step, one file with the engine inlined,
 script that defines `window.MaskoPlayer`, not a module to import.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.13/dist/masko-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.14/dist/masko-player.js"></script>
 <script>
   const mascot = MaskoPlayer.mount(document.getElementById('mascot'), { delivery });
 </script>
@@ -159,7 +159,9 @@ more when it is fired with `instant`) are kept, at most 1000 calls.
   page is hidden. When the browser blocks sound until the person interacts,
   a one-shot sound is skipped and a looping one starts on their first click
   or key press.
-- Shows a tap-to-play button when the browser blocks autoplay.
+- Shows a tap-to-play button when the browser blocks autoplay (an iPhone in
+  Low Power Mode blocks even muted video). The person's next tap anywhere on
+  the page starts it too, and the clips after it play without another tap.
 - Asks `getDelivery` for fresh signed links before they expire and swaps the
   links only; the mascot keeps playing. It checks again when the page shows
   after the device slept and when it comes back online, and never asks more

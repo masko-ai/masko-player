@@ -627,6 +627,27 @@ test('autoplay blocked: first frame, tap-to-play overlay, clock held until play'
   assert.ok(events.includes('error:missing_end'), 'the clock runs after the tap');
 });
 
+test('autoplay blocked: the next gesture anywhere starts it and primes the other slot', async () => {
+  const { host, events, a, b } = await mount({}, (h) => (h.slots[0].refuse = 'always'));
+  assert.equal(host.overlay, true);
+  a.frame();
+  await settle();
+  // A gesture the browser does not count (a touch starting): still blocked, still waiting.
+  host.gesture();
+  await settle();
+  assert.equal(host.overlay, true, 'refused again: the overlay stays');
+  assert.equal(a.playing, false);
+  a.refuse = 'none';
+  host.gesture();
+  assert.equal(host.overlay, false);
+  assert.equal(a.playing, true, 'plays inside the gesture');
+  assert.equal(b.primed, 2, 'the free slot is primed in each gesture');
+  await host.advance(3000);
+  assert.ok(events.includes('error:missing_end'), 'the clock runs after the gesture');
+  host.gesture();
+  assert.equal(b.primed, 2, 'no more priming once it plays');
+});
+
 test('voices: unmuted only with sound on and hasAudio, muted when the browser refuses', async () => {
   for (const [sound, refuse, muted] of [
     [false, 'none', true],

@@ -295,6 +295,44 @@ test('autoplay blocked: the first frame under a tap-to-play overlay; a tap start
   expect(state.events.filter((e) => e.event === 'error')).toEqual([]);
 });
 
+test('autoplay blocked per video, as in Safari: a tap anywhere starts it, and the next clip needs no second tap', async ({ page }) => {
+  // Safari in Low Power Mode: a video plays only once a play() of that same
+  // element ran inside a real gesture.
+  await page.addInitScript(() => {
+    let gesture = false;
+    for (const type of ['pointerup', 'click', 'keydown'])
+      addEventListener(type, (e) => {
+        if (!e.isTrusted) return;
+        gesture = true;
+        setTimeout(() => (gesture = false), 0);
+      }, true);
+    const unlocked = new WeakSet<HTMLMediaElement>();
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (gesture) unlocked.add(this);
+      if (!unlocked.has(this)) return Promise.reject(new DOMException('autoplay blocked', 'NotAllowedError'));
+      return play.call(this);
+    };
+  });
+  await start(page);
+  const tap = page.locator('.masko-tap');
+  await expect(tap).toBeVisible();
+  // Not on the overlay: somewhere else on the page.
+  await page.mouse.click(500, 400);
+  await expect(tap).toBeHidden();
+  await waitClip(page, 'idle-loop', 2);
+  await page.evaluate(() =>
+    (window as unknown as { handle: { fire(n: string, o: { instant: boolean }): void } }).handle.fire(
+      'action::click',
+      { instant: true }
+    )
+  );
+  await waitClip(page, 'poke');
+  await expect(tap).toBeHidden();
+  const { events } = await result(page);
+  expect(events.filter((e) => e.event === 'error')).toEqual([]);
+});
+
 test('pause stops the clip and the clock; play resumes it', async ({ page }) => {
   await start(page);
   await waitClip(page, 'idle-loop');
