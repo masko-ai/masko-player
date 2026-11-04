@@ -64,6 +64,12 @@ export interface PlayerOptions {
   sound?: boolean;
   /** Starts at once. Defaults to the canvas's `autoPlay`, else true. */
   autoPlay?: boolean;
+  /**
+   * What the player downloads ahead. `'next'` (the default): every clip that
+   * can play next from the pose on screen. `'all'`: those first, then, once
+   * the mascot shows, every other clip of the release, kept for the visit.
+   */
+  preload?: 'next' | 'all';
   /** Seeds the extra-clip rolls; random by default. */
   seed?: number;
 }
@@ -174,6 +180,8 @@ export class Player {
   private voices: boolean;
   /** Waiting for the person's next gesture, after the browser refused a voice. */
   private voiceGesture: (() => void) | null = null;
+  /** `preload: 'all'` has asked for every clip. */
+  private preloadedAll = false;
   /** Waits for the person's next gesture to start a blocked autoplay. */
   private blockedGesture: (() => void) | null = null;
 
@@ -188,7 +196,8 @@ export class Player {
     this.host = host;
     this.options = options;
     this.clock = new PlayClock(() => host.now());
-    this.cache = new ClipCache(host.files);
+    // With every clip kept, the cache never drops one.
+    this.cache = new ClipCache(host.files, options.preload === 'all' ? Infinity : undefined);
     this.voices = options.sound ?? true;
     this.seed = options.seed ?? Math.floor(Math.random() * 2 ** 52) + 1;
     if (options.autoPlay !== undefined) this.wantStart = options.autoPlay;
@@ -842,6 +851,17 @@ export class Player {
       this.emit('movement', { edge: s.edge, movement: edge.movement, rate: s.rate, seconds: edge.duration / s.rate });
     }
     this.reportShown(s);
+    if (this.options.preload === 'all' && !this.preloadedAll) {
+      this.preloadedAll = true;
+      this.preloadAll();
+    }
+  }
+
+  /** `preload: 'all'`: every clip of the release with a file this browser plays, after the engine's own preloads. */
+  private preloadAll(): void {
+    for (const [edge, e] of this.edges) {
+      if (chooseFiles(e, this.host.formats, this.host.pixels()).length > 0) this.preload(edge);
+    }
   }
 
   /**

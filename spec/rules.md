@@ -373,6 +373,17 @@ there (4.2), with no restart, instant or not. Instant changes nothing else:
 the winner is ranked as always (4.1); instant only changes when it starts
 and, for an Any State edge, how it reaches its target.
 
+**An instant named clip.** When no start happens now, and the named clip
+the pose would choose at its next boundary (7.2) has a holding group with a
+condition on an instant name that is on, that named clip shows now: it cuts
+the pose clip or still on screen, from whatever frame it is on, like an
+instant move, and claims its fires as at a boundary (3.3). The fires the cut
+clip had claimed are spent there. A named clip already on screen plays on
+and does not start again. During a move nothing changes: the named clip
+waits for the move's end, as every fire made during a move does (10.3). A
+start the engine has decided keeps its moment, and comes after the named
+clip when that moment is the end of the clip on screen.
+
 ## 6. Going to a pose
 
 The winner is an Any State edge with target T, the start is not instant
@@ -424,6 +435,8 @@ Among a pose's pose clips that have a clip, in canvas order:
 
 - When the pose is entered and no move starts: the named clip that holds,
   else the main loop. Never an extra.
+- Outside a move, when an instant name holds the named clip the pose would
+  choose next and no start happens now: that named clip, at once (5.8).
 - When a pose clip ends and no move starts (5.5): the named clip that holds;
   else, if the clip that ended was the main loop and the pose has extras, the
   extra roll (7.3); else the main loop.
@@ -544,10 +557,14 @@ is on by default.
 When a pose is entered, the engine asks the player to preload, in this order
 and once each: the first hop (6) of each Any State edge whose target is
 another pose it can reach, in rank order (4.1), then the pose's other moves
-that have a clip, in rank order. Every first hop is one of the pose's moves,
-so this is every move with a clip, the most important first. When a move
-starts, the engine asks the player to preload the target pose's main loop
-(7.1), so the pose can show as soon as the move ends. No app call preloads.
+that have a clip, in rank order, then the pose's named clips that have a
+clip, then its extras that have one, both in canvas order (7.1). Every first
+hop is one of the pose's moves, so this is every clip that can play next
+from this pose, moves first and the most important first, without the main
+loop on screen. When a move starts, the engine asks the player to preload
+the target pose's main loop (7.1), so the pose can show as soon as the move
+ends. No app call preloads; a web page can ask the player to load every
+clip of the release as well (`player.md`, `preload`).
 
 ## 10. A change during a move
 

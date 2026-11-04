@@ -1013,6 +1013,9 @@ impl Engine {
             _ => {
                 self.decided = None;
                 self.drop_unwanted();
+                if boundary == Boundary::None {
+                    self.instant_pose_clip();
+                }
                 return false;
             }
         };
@@ -1023,7 +1026,56 @@ impl Engine {
         }
         self.decided = Some(Decided { plan, at });
         self.drop_unwanted();
+        if boundary == Boundary::None {
+            self.instant_pose_clip();
+        }
         false
+    }
+
+    /// The named clip the pose would choose at its next boundary (7.2),
+    /// shown now when an instant name holds it: it cuts the pose clip on
+    /// screen, as an instant move does (rules.md 5.8). A named clip already
+    /// on screen plays on and never starts again; during a move nothing
+    /// changes. The fires the cut clip took are dropped there (3.3).
+    fn instant_pose_clip(&mut self) {
+        let Some(p) = self.pose.clone() else {
+            return;
+        };
+        let Some(on) = self.screen.filter(|s| s.kind != ScreenKind::Move) else {
+            return;
+        };
+        let Some(i) = self
+            .g
+            .pose_clips(&p)
+            .filter(|&i| self.g.edges[i].has_video && !self.g.edges[i].groups.is_empty())
+            .find(|&i| !self.holding_groups(i).is_empty())
+        else {
+            return;
+        };
+        let instant = self
+            .holding_groups(i)
+            .iter()
+            .any(|g| g.iter().any(|c| self.is_instant(&c.input)));
+        if !instant || on.edge == Some(i) {
+            return;
+        }
+        if let Some(cut) = on.edge {
+            let here = p.clone();
+            self.spend_where(move |c| {
+                !c.as_ref()
+                    .is_some_and(|c| c.pose == here && c.clip == Some(cut))
+            });
+        }
+        let names = self.holding_names(i);
+        self.claim(
+            &names,
+            Claim {
+                pose: p,
+                clip: Some(i),
+                route: false,
+            },
+        );
+        self.show_pose(Some(i));
     }
 
     fn interrupt(&mut self, plan: Plan) {
@@ -1197,6 +1249,20 @@ impl Engine {
             .collect();
         moves.sort_by(rank);
         for i in moves {
+            let id = &self.g.edges[i].id;
+            if !out.contains(id) {
+                out.push(id.clone());
+            }
+        }
+        // Then the pose clips that can follow the one on screen: its named
+        // clips, then its extras, in canvas order (rules.md 7.1).
+        let main = self.main_clip(p);
+        let (named, extras): (Vec<usize>, Vec<usize>) = self
+            .g
+            .pose_clips(p)
+            .filter(|&i| self.g.edges[i].has_video && Some(i) != main)
+            .partition(|&i| !self.g.edges[i].groups.is_empty());
+        for i in named.into_iter().chain(extras) {
             let id = &self.g.edges[i].id;
             if !out.contains(id) {
                 out.push(id.clone());

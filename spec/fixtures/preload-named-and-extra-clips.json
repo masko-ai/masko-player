@@ -1,0 +1,225 @@
+{
+  "name": "preload-named-and-extra-clips",
+  "about": "Entering a pose preloads its moves first, then its named clips, then its extras; an instant fire then shows the preloaded named clip at once.",
+  "rules": [
+    "5.8",
+    "7.1",
+    "9.7"
+  ],
+  "canvas": {
+    "deliverySchemaVersion": 1,
+    "playerContract": 1,
+    "requires": [],
+    "target": "web",
+    "mode": "selected",
+    "runtimeGraph": {
+      "runtimeGraphSchemaVersion": 1,
+      "version": "2.1",
+      "name": "scenario",
+      "initialNode": "a",
+      "autoPlay": true,
+      "nodes": [
+        {
+          "id": "a",
+          "name": "a"
+        },
+        {
+          "id": "b",
+          "name": "b"
+        }
+      ],
+      "edges": [
+        {
+          "id": "loop-a",
+          "source": "a",
+          "target": "a",
+          "isLoop": true,
+          "duration": 4,
+          "videos": {
+            "hevc": "https://example.invalid/loop-a.mov",
+            "webm": "https://example.invalid/loop-a.webm"
+          }
+        },
+        {
+          "id": "loop-a-yawn",
+          "source": "a",
+          "target": "a",
+          "isLoop": true,
+          "duration": 3,
+          "videos": {
+            "hevc": "https://example.invalid/loop-a-yawn.mov",
+            "webm": "https://example.invalid/loop-a-yawn.webm"
+          }
+        },
+        {
+          "id": "loop-a-wave",
+          "source": "a",
+          "target": "a",
+          "isLoop": true,
+          "duration": 2,
+          "videos": {
+            "hevc": "https://example.invalid/loop-a-wave.mov",
+            "webm": "https://example.invalid/loop-a-wave.webm"
+          },
+          "conditions": [
+            {
+              "input": "action::wave",
+              "op": "==",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": "loop-b",
+          "source": "b",
+          "target": "b",
+          "isLoop": true,
+          "duration": 4,
+          "videos": {
+            "hevc": "https://example.invalid/loop-b.mov",
+            "webm": "https://example.invalid/loop-b.webm"
+          }
+        },
+        {
+          "id": "a-to-b",
+          "source": "a",
+          "target": "b",
+          "isLoop": false,
+          "duration": 1,
+          "videos": {
+            "hevc": "https://example.invalid/a-to-b.mov",
+            "webm": "https://example.invalid/a-to-b.webm"
+          },
+          "conditions": [
+            {
+              "input": "action::x",
+              "op": "==",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": "b-to-a",
+          "source": "b",
+          "target": "a",
+          "isLoop": false,
+          "duration": 1,
+          "videos": {
+            "hevc": "https://example.invalid/b-to-a.mov",
+            "webm": "https://example.invalid/b-to-a.webm"
+          },
+          "conditions": [
+            {
+              "input": "action::back",
+              "op": "==",
+              "value": true
+            }
+          ]
+        }
+      ],
+      "inputs": []
+    }
+  },
+  "steps": [
+    {
+      "start": true,
+      "expect": {
+        "clock": 0,
+        "pose": "a",
+        "clip": "loop-a",
+        "next": null,
+        "events": [
+          "pose:a",
+          "shown:loop-a"
+        ],
+        "preloaded": [
+          "a-to-b",
+          "loop-a-wave",
+          "loop-a-yawn"
+        ]
+      }
+    },
+    {
+      "advance": 1000,
+      "expect": {
+        "clock": 1000,
+        "clip": "loop-a",
+        "events": []
+      }
+    },
+    {
+      "fire": "wave",
+      "instant": true,
+      "expect": {
+        "clock": 1000,
+        "pose": "a",
+        "clip": "loop-a-wave",
+        "next": null,
+        "events": [
+          "shown:loop-a-wave"
+        ],
+        "preloaded": [],
+        "fired": [
+          "action::wave"
+        ]
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 3000,
+        "pose": "a",
+        "clip": "loop-a",
+        "next": null,
+        "events": [
+          "spent:action::wave",
+          "shown:loop-a"
+        ],
+        "fired": []
+      }
+    },
+    {
+      "fire": "x",
+      "expect": {
+        "clock": 3000,
+        "clip": "loop-a",
+        "next": {
+          "clip": "a-to-b",
+          "at": "end"
+        },
+        "events": []
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 7000,
+        "clip": "a-to-b",
+        "events": [
+          "shown:a-to-b"
+        ],
+        "preloaded": [
+          "loop-b"
+        ]
+      }
+    },
+    {
+      "clipEnded": true,
+      "expect": {
+        "clock": 8000,
+        "pose": "b",
+        "clip": "loop-b",
+        "events": [
+          "pose:b",
+          "shown:loop-b"
+        ],
+        "preloaded": [
+          "b-to-a"
+        ],
+        "fired": [
+          "action::x"
+        ]
+      }
+    }
+  ]
+}

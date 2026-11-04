@@ -43,6 +43,12 @@ interface MountCommon {
   /** Starts at once. Defaults to the canvas's `autoPlay`, else true. */
   autoPlay?: boolean;
   /**
+   * What the player downloads ahead. `'next'` (the default): every clip that
+   * can play next from the pose on screen. `'all'`: those first, then, once
+   * the mascot shows, every other clip of the release, kept for the visit.
+   */
+  preload?: 'next' | 'all';
+  /**
    * @deprecated Ignored: the player no longer watches the pointer. The app
    * sets `behavior::pointerHover` and fires `action::click` itself.
    */
@@ -135,7 +141,8 @@ function mountCanvas(element: HTMLElement, url: string, appKey: string, options:
           delivery,
           getDelivery,
           sound: options.sound,
-          autoPlay: options.autoPlay
+          autoPlay: options.autoPlay,
+          preload: options.preload
         });
         const style = made.root.style;
         if (below) {
@@ -255,7 +262,8 @@ export function createPlayer(element: HTMLElement, options: MountOptions): { pla
     clip: options.clip,
     getDelivery: options.getDelivery,
     sound: options.sound,
-    autoPlay: options.autoPlay
+    autoPlay: options.autoPlay,
+    preload: options.preload
   };
   const player = new Player(host, playerOptions);
 

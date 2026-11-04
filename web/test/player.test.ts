@@ -160,6 +160,15 @@ test('start: the first loop loads in a hidden slot and shows on its first frame'
   assert.deepEqual(host.files.requested, [url('to-work'), url('poke')]);
 });
 
+test("preload 'all': once the mascot shows, every other clip of the release loads too, and stays", async () => {
+  const { host, a } = await mount({ preload: 'all' });
+  a.frame();
+  await settle();
+  // What can play next first, as by default, then every other clip.
+  assert.deepEqual(host.files.requested, [url('to-work'), url('poke'), url('idle-loop'), url('work-loop'), url('to-idle')]);
+  assert.deepEqual(host.files.freed, [], 'nothing is dropped from the cache');
+});
+
 test('swap only after the next clip has a decoded frame, in one step, no frame without a mascot', async () => {
   const { host, player, events, a, b } = await started();
   player.set('working', true);

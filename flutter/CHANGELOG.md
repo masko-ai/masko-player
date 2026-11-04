@@ -1,3 +1,10 @@
+## 0.1.15
+
+- No change to the Flutter API. The players it carries now preload a pose's
+  named clips and extras after its moves, and a value or fire made instant
+  shows the named clip it holds at once, cutting the loop on screen, as an
+  instant move does.
+
 ## 0.1.14
 
 - No change to the Flutter player. When a browser blocks autoplay, as an

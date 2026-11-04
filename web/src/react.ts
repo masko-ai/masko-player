@@ -81,11 +81,12 @@ function MaskoPlayerView(props: MaskoPlayerProps, ref: ForwardedRef<MaskoHandle>
     const common = {
       getDelivery: hasRefresh ? () => latest.current.getDelivery!() : undefined,
       sound: p.sound,
-      autoPlay: p.autoPlay
+      autoPlay: p.autoPlay,
+      preload: p.preload
     };
     // A canvas from its URL follows its newest release itself.
     const created: ReleasePlayer = p.url
-      ? mountMascot(element, { url: p.url, appKey: p.appKey, sound: p.sound, autoPlay: p.autoPlay })
+      ? mountMascot(element, { url: p.url, appKey: p.appKey, sound: p.sound, autoPlay: p.autoPlay, preload: p.preload })
       : createPlayer(element, p.clip ? { ...common, clip: p.clip } : { ...common, delivery: p.delivery! })
           .player;
     for (const [event, prop] of EVENTS) {

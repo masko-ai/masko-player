@@ -197,6 +197,11 @@ The same names on every platform:
   `instant: true`, in Kotlin `instant = true`.
 - `autoPlay`: the app's value wins when it gives one, else the graph's
   `autoPlay`, else true (rules.md 11.1).
+- `preload` (web only): `'next'` by default, the preloads the engine asks for
+  (rules.md 9.7). `'all'`: once the first clip shows, the player also loads
+  every other clip of the release with a file the browser plays, and its
+  cache keeps them all. An app that plays a canvas from its URL already
+  keeps every file of the release on the device.
 - `sound`: on by default. A clip's own voice (`hasAudio`) is heard unless
   the app turns sound off; edge sounds play either way. A browser refuses
   sound before the person's first gesture on the page: a web player then

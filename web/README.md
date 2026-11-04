@@ -64,7 +64,7 @@ Without a build step, one file with the engine inlined,
 script that defines `window.MaskoPlayer`, not a module to import.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.14/dist/masko-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.15/dist/masko-player.js"></script>
 <script>
   const mascot = MaskoPlayer.mount(document.getElementById('mascot'), { delivery });
 </script>
@@ -131,7 +131,12 @@ file has one. A clip whose length cannot be read plays nothing and reports
   says what it is about: the edge of a clip error, the name of a refused
   value, the pose of a pose error).
 - Options: `sound` (on by default: a clip's own voice is heard; false mutes
-  it; edge sounds play either way) and `autoPlay` (defaults to the canvas).
+  it; edge sounds play either way), `autoPlay` (defaults to the canvas) and
+  `preload`: `'next'` by default, every clip that can play next from the
+  pose on screen (its moves, named clips and extras); `'all'` also loads
+  every other clip of the release once the mascot shows, and keeps them for
+  the visit, for a game or a demo where every reaction must start at once.
+  `'all'` downloads the whole canvas: keep it for small canvases.
 - The person: the player does not watch the pointer, clicks or keys. The app
   sends what the person does to the mascot, like any other value, and adds
   `{ instant: true }` when it should cut the loop:
@@ -155,7 +160,8 @@ more when it is fired with `instant`) are kept, at most 1000 calls.
   least as large as the mascot on screen.
 - Two video elements: the next clip swaps in only once its first frame is
   decoded, so there is always a mascot on screen and never a crossfade.
-- Preloads what the engine asks for, plays edge sounds, and pauses while the
+- Preloads what the engine asks for (every clip that can play next, or with
+  `preload: 'all'` every clip), plays edge sounds, and pauses while the
   page is hidden. When the browser blocks sound until the person interacts,
   a one-shot sound is skipped and a looping one starts on their first click
   or key press.

@@ -1,6 +1,6 @@
 {
   "name": "@masko/player-react-native",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Plays Masko mascots in React Native and Expo apps, with the Masko player for iOS and Android.",
   "license": "MIT",
   "author": "Masko",
