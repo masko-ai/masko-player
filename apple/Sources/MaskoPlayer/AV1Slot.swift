@@ -1,4 +1,7 @@
 import AVFoundation
+#if os(macOS)
+import CoreAudio
+#endif
 import Dav1d
 import Metal
 import QuartzCore
@@ -9,7 +12,8 @@ import VideoToolbox
 /// them, so the slot reads the file's frames itself, decodes them with the
 /// device's AV1 decoder when it has one and with dav1d otherwise, and draws
 /// each one transparent with a Metal shader. The sound plays from the same
-/// file.
+/// file, and the picture waits for it: the clock starts when the sound
+/// reaches the speakers, so a voice stays on the lips, also on Bluetooth.
 @MainActor
 final class AV1Slot: VideoSlot {
     let layer = CAMetalLayer()
@@ -52,15 +56,16 @@ final class AV1Slot: VideoSlot {
             muted = newValue
             if newValue {
                 audio?.stop()
-            } else if startedAt != nil {
-                audio?.play(from: clipTime, rate: rate)
+            } else if startedAt != nil, let audio, let clip, audio.prepare() {
+                _ = audio.play(from: clipTime + audio.delay * rate + clip.soundStart, rate: rate)
             }
         }
     }
 
     var clipTime: Double {
         guard let startedAt else { return baseTime }
-        let t = baseTime + (CACurrentMediaTime() - startedAt) * rate
+        // Before the sound is heard, the clock holds the frame on screen.
+        let t = baseTime + max(0, CACurrentMediaTime() - startedAt) * rate
         return min(t, clip?.duration ?? t)
     }
 
@@ -127,12 +132,17 @@ final class AV1Slot: VideoSlot {
     }
 
     func play(rate: Double) {
-        guard clip != nil else { return }
+        guard let clip else { return }
         played = true
         baseTime = clipTime
         self.rate = rate
         startedAt = CACurrentMediaTime()
-        if !muted { audio?.play(from: baseTime, rate: rate) }
+        // The picture starts when the sound is heard, not when it is asked
+        // for: starting the sound and the speakers' own delay (much longer on
+        // Bluetooth) would otherwise put the voice behind the lips.
+        if !muted, let heard = audio?.play(from: baseTime + clip.soundStart, rate: rate) {
+            startedAt = heard
+        }
         startTicking()
     }
 
@@ -224,6 +234,9 @@ struct AV1Clip: @unchecked Sendable {
     let width: Int
     let height: Int
     let sound: AVAudioFile?
+    /// Seconds into the sound when the first frame shows: frame times start at
+    /// 0, the sound keeps the file's own offset to the picture.
+    var soundStart = 0.0
 
     /// The last frame due at `time`.
     func frameIndex(at time: Double) -> Int {
@@ -272,7 +285,11 @@ struct AV1Clip: @unchecked Sendable {
         let start = times[0]
         times = times.map { $0 - start }
         let dimensions = CMVideoFormatDescriptionGetDimensions(format)
-        return AV1Clip(
+        var soundStart = 0.0
+        if voiced, let sound = try await asset.loadTracks(withMediaType: .audio).first {
+            soundStart = max(0, start - (try await sound.load(.timeRange).start.seconds))
+        }
+        var clip = AV1Clip(
             frames: frames,
             times: times,
             duration: length.isFinite && length > 0 ? length : times.last! + 1.0 / 24,
@@ -281,6 +298,8 @@ struct AV1Clip: @unchecked Sendable {
             height: Int(dimensions.height),
             sound: voiced ? try? AVAudioFile(forReading: url) : nil
         )
+        clip.soundStart = soundStart.isFinite ? soundStart : 0
+        return clip
     }
 
     /// Whether `file` is an MP4 whose video track is AV1, from its sample
@@ -699,6 +718,8 @@ final class SlotAudio {
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
     private let pitch = AVAudioUnitTimePitch()
+    /// Time to schedule the start on the running engine, so it is exact.
+    private let lead = 0.05
 
     init(file: AVAudioFile) {
         self.file = file
@@ -708,18 +729,29 @@ final class SlotAudio {
         engine.connect(pitch, to: engine.mainMixerNode, format: file.processingFormat)
     }
 
-    /// Plays from `seconds` into the clip at this rate.
-    func play(from seconds: Double, rate: Double) {
+    /// Starts the engine when it is off. False when there is no sound device
+    /// (a test runner, a phone with audio taken): the clip then plays silent.
+    func prepare() -> Bool {
+        engine.isRunning || (try? engine.start()) != nil
+    }
+
+    /// Seconds from asking for a sound to hearing it: the scheduling lead and
+    /// the output's delay.
+    var delay: Double { lead + OutputDelay.seconds(of: engine) }
+
+    /// Plays from `seconds` into the sound at this rate, and returns when its
+    /// first sample is heard, on the `CACurrentMediaTime` clock; nil when it
+    /// cannot play.
+    func play(from seconds: Double, rate: Double) -> CFTimeInterval? {
         node.stop()
-        let start = AVAudioFramePosition(seconds * file.processingFormat.sampleRate)
-        guard start < file.length else { return }
+        let start = AVAudioFramePosition(max(0, seconds) * file.processingFormat.sampleRate)
+        guard start < file.length, prepare() else { return nil }
         pitch.rate = Float(rate)
         node.scheduleSegment(file, startingFrame: start, frameCount: AVAudioFrameCount(file.length - start), at: nil)
-        if !engine.isRunning {
-            // No sound device (a test runner, a phone with audio taken): the clip plays silent.
-            guard (try? engine.start()) != nil else { return }
-        }
-        node.play()
+        // CACurrentMediaTime and host time are the same clock.
+        let at = CACurrentMediaTime() + lead
+        node.play(at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: at)))
+        return at + OutputDelay.seconds(of: engine)
     }
 
     func pause() {
@@ -729,5 +761,51 @@ final class SlotAudio {
     func stop() {
         node.stop()
         engine.stop()
+    }
+}
+
+/// How long a sample takes from the engine to the speakers.
+enum OutputDelay {
+    @MainActor
+    static func seconds(of engine: AVAudioEngine) -> Double {
+        #if os(macOS)
+        // What AVFoundation adds up for video: the device's latency and
+        // safety offset, its buffer and the stream's latency. Bluetooth
+        // headphones report their own long delay here.
+        guard let unit = engine.outputNode.audioUnit else { return engine.outputNode.presentationLatency }
+        var device = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size) == noErr,
+            device != 0
+        else { return engine.outputNode.presentationLatency }
+        func frames(_ selector: AudioObjectPropertySelector, of object: AudioObjectID, scope: AudioObjectPropertyScope) -> UInt32 {
+            var value = UInt32(0)
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+            return AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr ? value : 0
+        }
+        var rate = Float64(0)
+        size = UInt32(MemoryLayout<Float64>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &rate) == noErr, rate > 0 else {
+            return engine.outputNode.presentationLatency
+        }
+        let out = kAudioObjectPropertyScopeOutput
+        var total = frames(kAudioDevicePropertyLatency, of: device, scope: out)
+            + frames(kAudioDevicePropertySafetyOffset, of: device, scope: out)
+            + frames(kAudioDevicePropertyBufferFrameSize, of: device, scope: out)
+        address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams, mScope: out, mElement: kAudioObjectPropertyElementMain)
+        if AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr, size >= UInt32(MemoryLayout<AudioStreamID>.size) {
+            var streams = [AudioStreamID](repeating: 0, count: Int(size) / MemoryLayout<AudioStreamID>.size)
+            if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &streams) == noErr, let stream = streams.first {
+                total += frames(kAudioStreamPropertyLatency, of: stream, scope: kAudioObjectPropertyScopeGlobal)
+            }
+        }
+        return Double(total) / rate
+        #else
+        let session = AVAudioSession.sharedInstance()
+        return session.outputLatency + session.ioBufferDuration
+        #endif
     }
 }

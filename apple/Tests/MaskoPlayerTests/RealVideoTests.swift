@@ -216,6 +216,44 @@ final class RealVideoTests: XCTestCase {
         XCTAssertEqual(Int(centre[0]), 0x02, accuracy: 12)
     }
 
+    func testAVoicedAV1ClipsPictureWaitsForItsSoundToBeHeard() async throws {
+        let url = clips.appendingPathComponent("loop-av1.mp4")
+        let clip = try await AV1Clip.read(url)
+        XCTAssertEqual(clip.soundStart, 0, accuracy: 0.001, "picture and sound start together in this file")
+        let sound = try XCTUnwrap(clip.sound)
+        let audio = SlotAudio(file: sound)
+        guard audio.prepare() else { throw XCTSkip("no sound device") }
+        // The output's delay is real and small on built-in speakers, long on Bluetooth.
+        let delay = audio.delay
+        XCTAssertGreaterThanOrEqual(delay, 0.05)
+        XCTAssertLessThan(delay, 1)
+        let asked = CACurrentMediaTime()
+        let heard = try XCTUnwrap(audio.play(from: 0, rate: 1))
+        XCTAssertEqual(heard - asked, delay, accuracy: 0.01, "heard after the lead and the speakers' delay")
+        audio.stop()
+
+        // A slot playing the clip with its sound holds the first frame until the sound is heard.
+        let slot = AV1Slot()
+        let loaded: Bool = await withCheckedContinuation { done in slot.load(url) { done.resume(returning: $0) } }
+        XCTAssertTrue(loaded)
+        slot.isMuted = false
+        slot.play(rate: 1)
+        XCTAssertEqual(slot.clipTime, 0, accuracy: 0.0001, "the picture waits for the sound")
+        try await Task.sleep(nanoseconds: UInt64((delay + 0.15) * 1_000_000_000))
+        XCTAssertGreaterThan(slot.clipTime, 0.1, "then plays with it")
+        XCTAssertLessThan(slot.clipTime, 0.25)
+        slot.unload()
+
+        // Muted, nothing to wait for: the picture starts at once.
+        let silent = AV1Slot()
+        let ready: Bool = await withCheckedContinuation { done in silent.load(url) { done.resume(returning: $0) } }
+        XCTAssertTrue(ready)
+        silent.play(rate: 1)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertGreaterThan(silent.clipTime, 0.05)
+        silent.unload()
+    }
+
     func testAnAV1LoopRestartsWhileFramesAreStillAskedFor() async throws {
         let clip = try await AV1Clip.read(clips.appendingPathComponent("loop-av1.mp4"))
         let renderer = try XCTUnwrap(StackedRenderer.shared)

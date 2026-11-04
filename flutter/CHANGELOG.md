@@ -1,3 +1,9 @@
+## 0.1.16
+
+- No change to the Flutter API. On iPhone, iPad and Mac, a talking stacked AV1
+  clip now waits for its sound to reach the speakers before its picture
+  moves, so the voice stays on the lips, also on Bluetooth headphones.
+
 ## 0.1.15
 
 - No change to the Flutter API. The players it carries now preload a pose's

@@ -109,6 +109,9 @@ nothing and reports `clip_failed`.
   A refused delivery gives the engine's own code (`unreadable` for text that
   is not JSON).
 - `sound` is on by default: a clip's own voice is heard; `false` mutes it.
+  A voiced stacked AV1 clip waits for its sound to reach the speakers before
+  its picture moves, so the voice stays on the lips, also on Bluetooth
+  headphones.
   Edge sounds play either way. The app chooses its `AVAudioSession` category.
 - The view does not watch the person. The app sends taps, clicks and the
   pointer itself, with its own gestures, as it already does for dragging and
