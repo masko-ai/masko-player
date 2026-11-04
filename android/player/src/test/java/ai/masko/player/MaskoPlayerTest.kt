@@ -12,6 +12,9 @@ import org.junit.Test
  * The player against a fake video layer (spec/player.md, "Tests every
  * platform runs", 2), with the real engine through the Kotlin binding.
  */
+/** The latest preload of the move `to-work`: entering idle preloads it, then idle's named clip `boop-idle` (rules 9.7). */
+private fun Rig.toWorkPreload() = stage.preloads.last { it.first.contains("/to-work.") }
+
 class MaskoPlayerTest {
 
     // ------------------------------------------------------------------ start and the swap
@@ -402,11 +405,15 @@ class MaskoPlayerTest {
         rig.slot1.firstFrame()
         assertTrue(rig.heard.events.contains("error:clip_timeout"))
 
-        // Back to idle, where to-work is preloaded again; this time it loads.
+        // Back to idle, where to-work is preloaded again, then idle's named clip; this time it loads.
+        val before = rig.stage.preloads.size
         rig.player.reset()
         rig.slot0.firstFrame()
-        assertEquals("https://cdn.test/m/to-work.mp4?sig=1", rig.stage.preloads.last().first)
-        rig.stage.preloads.last().second(true)
+        assertEquals(
+            listOf("https://cdn.test/m/to-work.mp4?sig=1", "https://cdn.test/m/boop-idle.mp4?sig=1"),
+            rig.stage.preloads.drop(before).map { it.first },
+        )
+        rig.toWorkPreload().second(true)
         rig.heard.events.clear()
         rig.player.set("working", true)
         rig.slot1.firstFrame()
@@ -421,13 +428,17 @@ class MaskoPlayerTest {
     fun enteringAPosePreloadsItsMovesWithAStackedFile() {
         val rig = Rig()
         rig.turn()
-        assertEquals(listOf("https://cdn.test/m/to-work.mp4?sig=1"), rig.stage.preloads.map { it.first })
+        // Its moves first, then its named clips (rules 9.7).
+        assertEquals(
+            listOf("https://cdn.test/m/to-work.mp4?sig=1", "https://cdn.test/m/boop-idle.mp4?sig=1"),
+            rig.stage.preloads.map { it.first },
+        )
     }
 
     @Test
     fun aFailedPreloadMakesTheEngineSkipTheClipUntilItLoads() {
         val rig = Rig().started()
-        rig.stage.preloads.single().second(false)
+        rig.toWorkPreload().second(false)
         rig.player.set("working", true)
         assertTrue("an unplayable clip is not warmed", rig.slot1.loads.isEmpty())
         rig.advance(2_000)
@@ -439,7 +450,7 @@ class MaskoPlayerTest {
         // Back to idle; this time the preload works and the move plays again.
         rig.player.set("working", false)
         rig.player.reset()
-        rig.stage.preloads.last().second(true)
+        rig.toWorkPreload().second(true)
         rig.player.set("working", true)
         assertTrue(rig.stage.slots.any { s -> s.loads.any { it.contains("to-work") } })
     }
@@ -562,12 +573,12 @@ class MaskoPlayerTest {
         val triggers = mapOf<String, (Rig) -> Unit>(
             "nextWake" to { it.started() },
             "state" to { it.started() },
-            "markUnplayable" to { it.started(); it.stage.preloads.single().second(false) },
+            "markUnplayable" to { it.started(); it.toWorkPreload().second(false) },
             "markPlayable" to {
                 it.started()
-                it.stage.preloads.single().second(false)
+                it.toWorkPreload().second(false)
                 it.player.updateDelivery(TestDelivery.json(sig = 2))
-                it.stage.preloads.last().second(true)
+                it.toWorkPreload().second(true)
             },
             "setBool" to { it.started(); it.player.set("working", true) },
         )
@@ -803,7 +814,7 @@ class MaskoPlayerTest {
     @Test
     fun updateDeliverySwapsTheLinksOfTheSameReleaseAndRetriesFailedClips() {
         val rig = Rig().started()
-        rig.stage.preloads.single().second(false)
+        rig.toWorkPreload().second(false)
         rig.heard.events.clear()
         assertTrue(rig.player.updateDelivery(TestDelivery.json(sig = 2, expires = "2026-10-23T14:00:00Z")))
         assertTrue("no error, the engine keeps running", rig.heard.events.isEmpty())

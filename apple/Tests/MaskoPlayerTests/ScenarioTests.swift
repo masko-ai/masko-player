@@ -36,7 +36,7 @@ final class ScenarioTests: XCTestCase {
             }
         }
         print("\(paths.count - bad) of \(paths.count) scenarios pass")
-        XCTAssertEqual(paths.count, 88, "the number of scenarios changed")
+        XCTAssertEqual(paths.count, 90, "the number of scenarios changed")
         XCTAssertEqual(bad, 0, "\(bad) scenarios failed")
     }
 
