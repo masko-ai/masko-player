@@ -13,6 +13,7 @@ call `set` and `fire`, and the canvas decides which clip plays.
 | Android               | `ai.masko:player`            | `android/`      |
 | React Native and Expo | `@masko/player-react-native` | `react-native/` |
 | Flutter               | `masko_player`               | `flutter/`      |
+| Windows (Rust)        | `masko-player-windows` crate | `windows/`      |
 
 Install:
 
@@ -29,6 +30,10 @@ Install:
   players.
 - **Android**: `implementation("ai.masko:player:0.1.16")` from Maven Central
   ([android/README.md](android/README.md)).
+- **Windows**: the Rust crate in `windows/` (not on crates.io yet): it keeps
+  a canvas's stacked AV1 clips on the computer, decodes them with dav1d and
+  draws them in a transparent window. The Masko desktop pets for Windows use
+  it. Build dav1d first with `scripts/build-dav1d-windows.sh`.
 
 The React Native and Flutter packages wrap the Swift and Kotlin players;
 they add no rules of their own.
@@ -79,7 +84,11 @@ Every format's size, and a calculator for your own mascot:
   Flutter packages take (`build-react-native.sh`, `build-flutter.sh`), the
   Swift engine's release zip
   (`release-apple.sh`, `zip-xcframework.sh`), and `third-party-notices.mjs`.
-- `.github/workflows/ci.yml`: the checks below, on GitHub Actions.
+- `windows/`: the Windows player (its own Cargo workspace), with
+  `examples/desktop_check.rs`, which plays test clips in a real transparent
+  window and checks the screen.
+- `.github/workflows/ci.yml`: the checks below, on GitHub Actions;
+  `.github/workflows/windows.yml`: the Windows player on Windows machines.
 
 ## Set up
 
