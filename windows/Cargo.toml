@@ -1,0 +1,47 @@
+[package]
+name = "masko-player-windows"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+description = "The Masko player for Windows apps: a canvas's AV1 clips, kept on the computer, in a transparent window."
+publish = false
+
+# Its own workspace: the root workspace (engine and bindings) builds on every
+# CI runner, and this crate needs dav1d and, for its window, Windows.
+[workspace]
+
+[dependencies]
+masko-player-engine = { path = "../engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The canvas URL and its files (delivery.rs, kept.rs): blocking HTTPS with
+# rustls and the bundled web roots, no async runtime, no gzip.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+sha2 = "0.10"
+# Install ids and temporary file names; ring already depends on it.
+getrandom = "0.2"
+# Media (src/media): pose stills, sound decoding (AAC in a clip or an .m4a,
+# MP3, WAV) and the sound output (WASAPI on Windows, Core Audio on the Mac).
+# dav1d decodes the video; build.rs links it.
+png = "0.18"
+symphonia = { version = "0.6", default-features = false, features = ["aac", "mp3", "wav", "pcm", "id3v2"] }
+cpal = { version = "0.18", default-features = false }
+
+# The transparent window the mascot is drawn in (src/view.rs).
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+# examples/desktop_check.rs makes its own window.
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = ["Win32_System_LibraryLoader"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

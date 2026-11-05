@@ -1,5 +1,7 @@
 [workspace]
 members = ["engine", "bindings/wasm", "bindings/uniffi", "bindings/uniffi-bindgen"]
+# The Windows player is its own workspace (windows/Cargo.toml).
+exclude = ["windows"]
 resolver = "2"
 
 [profile.release]

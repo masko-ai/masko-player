@@ -1,0 +1,7 @@
+# The Rust of the Windows player: the version of the repository's
+# rust-toolchain.toml, with Windows' targets instead of the mobile ones.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]
+targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]

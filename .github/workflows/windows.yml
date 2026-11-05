@@ -1,0 +1,74 @@
+# The Windows player (windows/, its own Cargo workspace) on GitHub's Windows
+# machines: dav1d built from source (scripts/build-dav1d-windows.sh), the
+# lint, the tests, then examples/desktop_check.rs, which plays the test clips
+# in a real transparent window on the runner's desktop and checks the screen.
+# Its screenshots are kept as the run's artifact. On pushes to windows-*
+# branches, pull requests touching the player, and by hand.
+name: Windows
+
+on:
+  push:
+    branches: ["windows-**"]
+  pull_request:
+    paths:
+      - "windows/**"
+      - "engine/**"
+      - "scripts/build-dav1d-windows.sh"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  windows:
+    name: Windows player
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Rust (windows/rust-toolchain.toml)
+        working-directory: windows
+        run: |
+          rustup toolchain install
+          rustc --version
+
+      - name: nasm, for dav1d's assembly
+        run: |
+          choco install nasm --no-progress -y
+          echo "C:\\Program Files\\NASM" >> "$GITHUB_PATH"
+
+      - name: Build dav1d
+        run: scripts/build-dav1d-windows.sh
+
+      - name: Format
+        working-directory: windows
+        run: cargo fmt --check
+
+      - name: Lint
+        working-directory: windows
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: windows
+        run: cargo test
+
+      - name: The player in a real window
+        working-directory: windows
+        run: cargo run --release --example desktop_check
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: desktop-check
+          path: windows/target/desktop-check/
+          if-no-files-found: ignore
