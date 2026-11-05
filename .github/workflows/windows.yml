@@ -46,6 +46,14 @@ jobs:
         with:
           arch: x64
 
+      # Rust takes link.exe from PATH once Visual Studio's environment is
+      # set, and in Git Bash /usr/bin/link.exe (a file tool) comes first.
+      - name: Visual Studio's linker for Rust
+        run: |
+          linker="$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64/link.exe"
+          test -f "$linker"
+          echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$(cygpath -w "$linker")" >>"$GITHUB_ENV"
+
       - name: nasm, for dav1d's assembly
         run: |
           choco install nasm --no-progress -y
