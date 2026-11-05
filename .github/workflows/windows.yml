@@ -41,6 +41,11 @@ jobs:
           rustup toolchain install
           rustc --version
 
+      - name: Visual Studio's C compiler on PATH (dav1d, and ring for HTTPS)
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+
       - name: nasm, for dav1d's assembly
         run: |
           choco install nasm --no-progress -y

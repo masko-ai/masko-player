@@ -110,6 +110,9 @@ fi
 echo "==> dav1d $DAV1D_VERSION for Windows $ARCH (MSVC, /$VSCRT)"
 rm -rf "$OUT"
 mkdir -p "$OUT"
+# The compiler named outright: meson then wraps no ccache around it (the
+# runner's Strawberry Perl puts one on PATH, which cannot find cl.exe).
+export CC=cl
 meson setup "$OUT/build" "$SRC" \
   --vsenv \
   --prefix "$OUT/install" --libdir lib \
@@ -122,7 +125,9 @@ meson setup "$OUT/build" "$SRC" \
   -Dbitdepths="['8']" \
   -Denable_asm=true >"$OUT/setup.log" || { cat "$OUT/setup.log" >&2; exit 1; }
 grep -q "nasm" "$OUT/setup.log" || echo "warning: meson did not report nasm; dav1d may be built without its assembly" >&2
-ninja -C "$OUT/build" >"$OUT/build.log" || { cat "$OUT/build.log" >&2; exit 1; }
+# meson compile, not ninja: with --vsenv it runs ninja inside Visual Studio's
+# environment again, where cl.exe is found.
+meson compile -C "$OUT/build" --vsenv >"$OUT/build.log" || { cat "$OUT/build.log" >&2; exit 1; }
 meson install -C "$OUT/build" --no-rebuild --quiet
 
 # meson names a static library libdav1d.a, also with MSVC; Rust's MSVC
