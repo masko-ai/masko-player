@@ -137,7 +137,9 @@ mod windows_check {
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
         let rgb: Vec<u8> = bgra
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|p| [p[2], p[1], p[0]])
             .collect();
         writer.write_image_data(&rgb).map_err(|e| e.to_string())
