@@ -113,6 +113,12 @@ mkdir -p "$OUT"
 # The compiler named outright: meson then wraps no ccache around it (the
 # runner's Strawberry Perl puts one on PATH, which cannot find cl.exe).
 export CC=cl
+# Git Bash's own link.exe (a file tool in /usr/bin) must not shadow Visual
+# Studio's linker, which sits beside cl.exe.
+if cl_path="$(command -v cl 2>/dev/null)"; then
+  PATH="$(dirname "$cl_path"):$PATH"
+  export PATH
+fi
 meson setup "$OUT/build" "$SRC" \
   --vsenv \
   --prefix "$OUT/install" --libdir lib \
