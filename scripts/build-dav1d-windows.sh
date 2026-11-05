@@ -101,7 +101,8 @@ rm -rf "$SRC"
 tar -xf "$TARBALL" -C "$WORK"
 
 # THIRD_PARTY_NOTICES.md carries this license text, from scripts/licenses/.
-if ! cmp -s "$SRC/COPYING" scripts/licenses/dav1d-COPYING.txt; then
+# Line endings aside: Git on Windows may check the copy out with CRLF.
+if ! cmp -s <(tr -d '\r' <"$SRC/COPYING") <(tr -d '\r' <scripts/licenses/dav1d-COPYING.txt); then
   echo "error: dav1d $DAV1D_VERSION has another COPYING than scripts/licenses/dav1d-COPYING.txt." >&2
   exit 1
 fi
