@@ -631,6 +631,15 @@ impl MaskoPlayer {
         }
     }
 
+    /// What the release on screen can do: its graph's `capabilities` (the
+    /// actions and behaviors its mascot was given, each with its input, name
+    /// and description), unchanged, or None before a delivery is in or when it
+    /// has none. A canvas read from its URL changes it when a newer release
+    /// takes over, so it names only what the mascot on screen plays.
+    pub fn capabilities(&self) -> Option<&serde_json::Value> {
+        self.delivery.as_ref()?.info.capabilities.as_ref()
+    }
+
     /// The picture to draw: premultiplied BGRA at the size asked for, or
     /// None (draw nothing).
     pub fn frame(&self) -> Option<&Frame> {

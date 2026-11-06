@@ -277,8 +277,16 @@ fn pose_stills_and_graph_info() {
         graph_info(&d).unwrap(),
         GraphInfo {
             initial_node: Some("idle".into()),
-            auto_play: true
+            auto_play: true,
+            capabilities: None
         }
+    );
+    let able = json!({ "runtimeGraph": { "nodes": [], "edges": [],
+        "capabilities": { "actions": { "nap": { "input": "action::nap", "name": "Nap" } } } } });
+    assert_eq!(
+        graph_info(&able.to_string()).unwrap().capabilities,
+        Some(json!({ "actions": { "nap": { "input": "action::nap", "name": "Nap" } } })),
+        "the graph's capabilities, unchanged"
     );
     let paused = json!({ "runtimeGraph": { "initialNode": "a", "autoPlay": false, "nodes": [], "edges": [] } });
     assert!(!graph_info(&paused.to_string()).unwrap().auto_play);
@@ -287,7 +295,8 @@ fn pose_stills_and_graph_info() {
         graph_info(&unset.to_string()).unwrap(),
         GraphInfo {
             initial_node: None,
-            auto_play: true
+            auto_play: true,
+            capabilities: None
         }
     );
 }

@@ -243,6 +243,9 @@ pub struct GraphInfo {
     pub initial_node: Option<String>,
     /// The graph's `autoPlay`, true when it gives none (rules.md 11.1).
     pub auto_play: bool,
+    /// The graph's `capabilities`, host data the app reads (player.md, "What
+    /// the app sees").
+    pub capabilities: Option<Value>,
 }
 
 fn parse(delivery_json: &str) -> Result<Value, FetchError> {
@@ -358,7 +361,8 @@ pub fn pose_stills(delivery_json: &str) -> Result<HashMap<String, String>, Fetch
         .collect())
 }
 
-/// The pose the mascot starts on and the graph's `autoPlay`.
+/// The pose the mascot starts on, the graph's `autoPlay` and its
+/// `capabilities`.
 pub fn graph_info(delivery_json: &str) -> Result<GraphInfo, FetchError> {
     let root = parse(delivery_json)?;
     let graph = graph(&root)?.fields;
@@ -371,6 +375,7 @@ pub fn graph_info(delivery_json: &str) -> Result<GraphInfo, FetchError> {
             .get("autoPlay")
             .and_then(Value::as_bool)
             .unwrap_or(true),
+        capabilities: graph.get("capabilities").filter(|c| !c.is_null()).cloned(),
     })
 }
 

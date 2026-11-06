@@ -121,6 +121,22 @@ fn options(test: &str) -> Options {
 }
 
 #[test]
+fn capabilities_are_the_releases_own_unchanged() {
+    let able =
+        serde_json::json!({ "actions": { "wave": { "input": "action::wave", "name": "Wave" } } });
+    let mut json: serde_json::Value =
+        serde_json::from_str(&delivery("loop.mp4", "move.mp4")).unwrap();
+    json["runtimeGraph"]["capabilities"] = able.clone();
+    let player = MaskoPlayer::from_delivery(&json.to_string(), options("capabilities"));
+    assert_eq!(player.capabilities(), Some(&able));
+    let without = MaskoPlayer::from_delivery(
+        &delivery("loop.mp4", "move.mp4"),
+        options("no-capabilities"),
+    );
+    assert_eq!(without.capabilities(), None, "a graph without capabilities");
+}
+
+#[test]
 fn real_av1_clips_swap_on_a_decoded_picture_and_end_on_their_length() {
     let loop_file = fixture("loop-av1.mp4");
     let move_file = fixture("move-av1.mp4");
