@@ -1,0 +1,25 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.*
+!sdkconfig.defaults
+managed_components/
+dependencies.lock
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Packs and media: generated, or user's content, not source
+*.mkpk
+examples/*/assets/
+*.mp4
+*.webm
+*.mov
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/

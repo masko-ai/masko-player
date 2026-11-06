@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "animate-mascot": {
+      "source": "masko-ai/masko-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/animate-mascot/SKILL.md",
+      "computedHash": "debccb8b4fca98df9a3c2872adea98dfb28f1c17f1997c291db6c61849276be2"
+    },
+    "build-interactive-mascot": {
+      "source": "masko-ai/masko-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/build-interactive-mascot/SKILL.md",
+      "computedHash": "416e9058b6a688a57804a0b9b9e00b8e0c7814393be520a85700edf7e5381a29"
+    },
+    "create-mascot": {
+      "source": "masko-ai/masko-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/create-mascot/SKILL.md",
+      "computedHash": "867d3de7366edfed18027d3fe358c390f0280519312478e8cb064a2d55228faa"
+    },
+    "integrate-mascot": {
+      "source": "masko-ai/masko-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/integrate-mascot/SKILL.md",
+      "computedHash": "34122ba215440176d61bbd09fdcd16a9159b168ababb562ac844c7715a854195"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+menu "Masko demo"
+
+config MASKO_PACK_IN_FLASH
+    bool "Play the pack from the 'masko' flash partition"
+    default y
+    help
+        The .mkpk is flashed into the 'masko' data partition and mmapped.
+        Deselect to fall back to a pack compiled into the app image, which is
+        convenient for quick iteration but bloats the binary.
+
+config MASKO_PACK_MAX_FPS
+    int "Frame rate cap"
+    default 24
+    range 1 60
+
+endmenu

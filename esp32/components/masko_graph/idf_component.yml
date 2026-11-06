@@ -1,0 +1,6 @@
+version: "0.1.0"
+description: "Masko ESP32 animation SDK - masko_graph (canvas state machine + JSON loader)"
+url: "https://github.com/hehimself/esp32-masko-sdk"
+license: "MIT"
+dependencies:
+  espressif/cjson: "^1.7.19"

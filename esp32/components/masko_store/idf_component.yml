@@ -1,0 +1,4 @@
+version: "0.1.0"
+description: "Masko ESP32 animation SDK - masko_store (flash / PSRAM / SD pack sources)"
+url: "https://github.com/hehimself/esp32-masko-sdk"
+license: "MIT"
