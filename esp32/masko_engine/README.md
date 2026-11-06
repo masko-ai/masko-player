@@ -24,9 +24,11 @@ esp32 delivery, an edge with `reverse: true` carries the pack of the move it
 returns from, to play backwards.
 
 Building needs Espressif's Rust toolchain besides ESP-IDF:
-`cargo install espup --locked && espup install -t esp32s3`, then
-`. ~/export-esp.sh` in the shell that runs `idf.py`. The component builds the
-engine as part of `idf.py build`. On the ESP32-S3 it takes about 330 KB of
+`cargo install espup --locked && espup install -t esp32s3`. The component only
+runs `cargo +esp`, so it needs nothing else: do not load `~/export-esp.sh` in
+the shell that runs `idf.py`, because its newer GCC comes first on the path and
+ESP-IDF refuses a GCC that is not the version it ships. The component builds
+the engine as part of `idf.py build`. On the ESP32-S3 it takes about 312 KB of
 flash; a 25-clip mascot holds about 16 KB of heap (43 KB while loading).
 `../examples/engine_demo` runs it on any ESP32-S3 board (or ESP-IDF's QEMU,
 `idf.py qemu`) and logs what it plays. It sits outside `components/` so the
