@@ -106,7 +106,7 @@ reports `clip_failed`.
 
 ```yaml
 dependencies:
-  masko_player: ^0.1.16
+  masko_player: ^0.1.17
 ```
 
 The package carries both native players: the Swift player with the

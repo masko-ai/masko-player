@@ -68,7 +68,8 @@ final class CanvasURLTests: XCTestCase {
                   {"id": "working", "transparentThumbnailUrl": "https://cdn.test/\(id)/working-\(id).png"}
                 ],
                 "inputs": [{"name": "behavior::working", "type": "boolean", "default": false}],
-                "edges": [\(edges.joined(separator: ","))]
+                "edges": [\(edges.joined(separator: ","))],
+                "capabilities": {"actions": {"\(id)": {"input": "action::\(id)"}}}
               },
               "deliveryAccess": {"urlMode": "signed", "signedUrlExpiresAt": "2027-01-15T08:00:00.000Z"}
             }
@@ -264,6 +265,10 @@ final class CanvasURLTests: XCTestCase {
         await playing(player)
         XCTAssertNotNil(kept().kept())
         XCTAssertEqual(network.downloaded.count, 12, "every file of r2 is kept before it plays")
+        XCTAssertEqual(
+            player.capabilities,
+            .object(["actions": .object(["r1": .object(["input": .string("action::r1")])])]),
+            "r2 waits for the initial loop: r1 is still on screen")
         events = []
         end(a, after: 2)
         // The old loop's last frame stays on screen until the new loop's first
@@ -276,6 +281,10 @@ final class CanvasURLTests: XCTestCase {
         XCTAssertEqual(stage.swapsWithoutFrame, 0)
         XCTAssertEqual(events, ["pose:idle", "clip:idle-loop"])
         XCTAssertEqual(player.engine!.state().clock, 0, "the new release starts at play time 0")
+        XCTAssertEqual(
+            player.capabilities,
+            .object(["actions": .object(["r2": .object(["input": .string("action::r2")])])]),
+            "what the mascot on screen can do is r2's")
         // It plays on from r2's files.
         player.set("behavior::working", true)
         end(b, after: 2)

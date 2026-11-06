@@ -100,6 +100,11 @@ nothing and reports `clip_failed`.
   `clip`, the edge on screen or `still:<pose>`, nil before anything shows,
   and `time`, its clip time in seconds) and `preview.showPose(_:)` /
   `preview.playMove(_:)` (editors only).
+- `capabilities`: the graph's `capabilities` of the release on screen, as a
+  `MaskoJSON` (its `actions` and `behaviors`, each with its `input`), or nil
+  when it has none. A canvas read from its URL changes it when a newer
+  release takes over, so an app that picks what to fire from it only names
+  clips the mascot on screen has.
 - `autoPlay` in the initializer wins over the graph's `autoPlay`; left nil,
   the graph decides, else the mascot starts at once.
 - Events, the same data as on every platform: `.pose(pose:)`,

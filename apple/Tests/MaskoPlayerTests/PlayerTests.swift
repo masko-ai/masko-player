@@ -978,6 +978,30 @@ final class PlayerTests: XCTestCase {
         XCTAssertEqual(player.engine!.state().clip, "idle-loop")
     }
 
+    func testCapabilitiesAreTheReleasesOwnUnchanged() {
+        var delivery = PlayerTests.delivery()
+        delivery["runtimeGraph"]?["capabilities"] = .object([
+            "actions": .object([
+                "nap": .object([
+                    "name": .string("Nap"), "input": .string("action::nap"), "description": .string("Dozes off."),
+                ])
+            ])
+        ])
+        let player = makePlayer(delivery)
+        XCTAssertEqual(
+            player.capabilities,
+            .object([
+                "actions": .object([
+                    "nap": .object([
+                        "name": .string("Nap"), "input": .string("action::nap"),
+                        "description": .string("Dozes off."),
+                    ])
+                ])
+            ]))
+        XCTAssertNil(makePlayer().capabilities, "a graph without capabilities")
+        XCTAssertNil(makeClipPlayer().capabilities, "a lone clip")
+    }
+
     func testPublicLinksAreNeverRefreshed() {
         let player = makePlayer()
         player.getDelivery = { Data() }

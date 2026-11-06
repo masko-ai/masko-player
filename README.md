@@ -28,7 +28,7 @@ Install:
 - **Flutter**: `flutter pub add masko_player`
   ([flutter/README.md](flutter/README.md)); it carries the iOS and Android
   players.
-- **Android**: `implementation("ai.masko:player:0.1.16")` from Maven Central
+- **Android**: `implementation("ai.masko:player:0.1.17")` from Maven Central
   ([android/README.md](android/README.md)).
 - **ESP32-S3 boards**: the ESP-IDF components in `esp32/`
   ([esp32/README.md](esp32/README.md)), written by Marvin Schmid, play

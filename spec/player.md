@@ -222,6 +222,12 @@ The same names on every platform:
     code, so text that is not JSON is `unreadable` everywhere. Only an
     engine that cannot run gives the player's `engine_unavailable` (web) or
     `engine_failed` (Android).
+- `capabilities` (Apple and Windows so far), read only: the graph's
+  `capabilities` of the release on screen, unchanged (host data, rules.md
+  1.1), or null before a delivery is in or when it has none. A canvas read
+  from its URL changes it when a newer release takes over, so an app that
+  picks what to fire from it (`actions`, each with its `input`) only names
+  clips the mascot on screen has.
 - `preview.showPose(id)` and `preview.playMove(id)`, for editors and tools.
 - Signed links expire (`deliveryAccess.signedUrlExpiresAt`). Five minutes
   before that (halfway there when less than ten minutes are left), the player

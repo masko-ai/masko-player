@@ -65,6 +65,9 @@ struct Delivery {
     var autoPlay: Bool
     /// `deliveryAccess.signedUrlExpiresAt`, for signed links only.
     var expiresAt: Date?
+    /// The graph's `capabilities`, host data the app reads (player.md, "What
+    /// the app sees").
+    var capabilities: MaskoJSON?
     /// The release with its links left out: `release.id` and the graph.
     let shape: Data?
 
@@ -109,6 +112,7 @@ struct Delivery {
         self.stills = stills
         initialNode = wire.runtimeGraph.initialNode?.value
         autoPlay = wire.runtimeGraph.autoPlay?.value ?? true
+        capabilities = wire.runtimeGraph.capabilities == .null ? nil : wire.runtimeGraph.capabilities
         if let access = wire.deliveryAccess?.value, access.urlMode?.value == "signed" {
             expiresAt = access.signedUrlExpiresAt?.value.flatMap(Delivery.date)
         } else {
@@ -222,6 +226,7 @@ struct Delivery {
     private struct Graph: Decodable {
         var initialNode: Lenient<String>?
         var autoPlay: Lenient<Bool>?
+        var capabilities: MaskoJSON?
         var nodes: [Node]
         var edges: [WireEdge]
     }

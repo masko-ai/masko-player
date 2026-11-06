@@ -1,3 +1,10 @@
+## 0.1.17
+
+- No change to the Flutter API or to how mascots play. The engine inside
+  every player can now also be built for ESP32 boards, and the Swift player
+  gives iPhone, iPad and Mac apps the release's `capabilities` (what the
+  mascot on screen can do).
+
 ## 0.1.16
 
 - No change to the Flutter API. On iPhone, iPad and Mac, a talking stacked AV1

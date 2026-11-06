@@ -502,6 +502,13 @@ public final class MaskoPlayer {
         return Position(clip: still?.edge, time: 0)
     }
 
+    /// What the release on screen can do: its graph's `capabilities` (the
+    /// actions and behaviors its mascot was given, each with its input, name
+    /// and description), unchanged, or nil before a delivery is in or when it
+    /// has none. A canvas read from its URL changes it when a newer release
+    /// takes over, so it names only what the mascot on screen plays.
+    public var capabilities: MaskoJSON? { delivery?.capabilities }
+
     /// Takes a fresh delivery of the same release, as `getDelivery` gives
     /// one: only its links are used, the engine keeps running, files already
     /// fetched keep playing and clips that failed are tried again. Another
