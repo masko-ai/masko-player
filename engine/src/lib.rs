@@ -1,6 +1,10 @@
 //! The Masko player engine: every canvas rule, no video, no network, no
 //! screen. `spec/rules.md` is what it implements; `spec/fixtures` proves it.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 mod engine;
 mod format;
 

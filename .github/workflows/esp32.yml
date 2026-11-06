@@ -1,6 +1,7 @@
 # The ESP32 player (esp32/) and the engine for it (bindings/c), on every
-# change to them: Marvin Schmid's host tests, then the firmware examples
-# built with ESP-IDF and Espressif's Rust toolchain. Board checks stay manual.
+# change to them: Marvin Schmid's host tests, the engine compiled for each
+# chip (kept as downloads), the firmware examples built with ESP-IDF, and the
+# demo built from a compiled engine with no Rust. Board checks stay manual.
 name: ESP32
 
 on:
@@ -48,6 +49,45 @@ jobs:
       - name: Run every host test
         run: tools/test_all.sh /tmp/clip.mkpk
 
+  # The engine compiled for each chip, without Rust's standard library: the
+  # files a firmware uses so it builds without Rust (esp32/masko_engine/lib/).
+  engine:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { chip: esp32s3, target: xtensa-esp32s3-none-elf, xtensa: true }
+          - { chip: esp32, target: xtensa-esp32-none-elf, xtensa: true }
+          - { chip: esp32s2, target: xtensa-esp32s2-none-elf, xtensa: true }
+          - { chip: esp32c3, target: riscv32imc-unknown-none-elf, xtensa: false }
+          - { chip: esp32c6, target: riscv32imac-unknown-none-elf, xtensa: false }
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.xtensa
+        uses: esp-rs/xtensa-toolchain@v1.7
+        with:
+          buildtargets: ${{ matrix.chip }}
+          default: false
+          override: false
+          export: false
+      - name: Build for ${{ matrix.chip }}
+        run: |
+          if [ "${{ matrix.xtensa }}" = "true" ]; then
+            cargo +esp build -p masko-player-c --release --no-default-features \
+              --target ${{ matrix.target }} -Zbuild-std=core,alloc
+          else
+            rustup target add ${{ matrix.target }}
+            cargo build -p masko-player-c --release --no-default-features \
+              --target ${{ matrix.target }}
+          fi
+          mkdir -p out/lib/${{ matrix.chip }}
+          cp target/${{ matrix.target }}/release/libmasko_player_c.a out/lib/${{ matrix.chip }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: masko_engine-${{ matrix.chip }}
+          path: out/
+
   firmware:
     runs-on: ubuntu-latest
     strategy:
@@ -68,3 +108,26 @@ jobs:
           version: v5.5.5
       - name: Build ${{ matrix.example }}
         run: idf.py -C esp32/examples/${{ matrix.example }} set-target esp32s3 build
+
+  # What a maker without Rust gets: the demo built from the compiled engine.
+  firmware-without-rust:
+    needs: engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: masko_engine-esp32s3
+          path: esp32/masko_engine/
+      - uses: espressif/install-esp-idf-action@v1
+        with:
+          version: v5.5.5
+      - name: Build engine_demo with no Rust installed
+        run: |
+          set -o pipefail
+          idf.py -C esp32/examples/engine_demo set-target esp32s3 build 2>&1 | tee build.log
+          grep -q "masko_engine: compiled engine for esp32s3" build.log
+          if grep -q "Building the Masko player engine" build.log; then
+            echo "::error::the build compiled the engine instead of using the compiled one"
+            exit 1
+          fi

@@ -2,10 +2,15 @@
 //! fields the rules read are decoded; players read media URLs, sounds and
 //! movement from the same delivery themselves.
 
+use alloc::borrow::{Cow, ToOwned};
+use alloc::collections::BTreeSet;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
 use serde::de::{Deserializer, IgnoredAny, Visitor};
 use serde::Deserialize;
-use std::collections::HashSet;
-use std::fmt;
 
 /// The rulebook version this engine implements (rules.md 1.2).
 pub const PLAYER_CONTRACT: u64 = 1;
@@ -457,7 +462,7 @@ impl<'de> Deserialize<'de> for GraphVersion {
                 mut m: A,
             ) -> Result<GraphVersion, A::Error> {
                 let mut version = None;
-                while let Some(key) = m.next_key::<std::borrow::Cow<'de, str>>()? {
+                while let Some(key) = m.next_key::<Cow<'de, str>>()? {
                     if key == "runtimeGraphSchemaVersion" {
                         version = m.next_value::<AnyNumber>()?.0;
                     } else {
@@ -540,7 +545,7 @@ pub fn decode_delivery(json: &str) -> Result<Release, LoadError> {
 }
 
 fn decode_graph(g: WireGraph) -> Result<Release, LoadError> {
-    let mut nodes = HashSet::new();
+    let mut nodes = BTreeSet::new();
     for n in &g.nodes {
         if !nodes.insert(n.id.as_str()) {
             return Err(refuse("invalid_graph", format!("duplicate node {}", n.id)));
@@ -549,13 +554,13 @@ fn decode_graph(g: WireGraph) -> Result<Release, LoadError> {
     if !nodes.contains(g.initial_node.as_str()) {
         return Err(refuse("invalid_graph", "initialNode is not a node"));
     }
-    let numbers: HashSet<&str> = g
+    let numbers: BTreeSet<&str> = g
         .inputs
         .iter()
         .filter(|i| i.kind == "number")
         .map(|i| i.name.as_str())
         .collect();
-    let mut edge_ids = HashSet::new();
+    let mut edge_ids = BTreeSet::new();
     let mut edges = Vec::with_capacity(g.edges.len());
     for e in g.edges {
         if !edge_ids.insert(e.id.clone()) {

@@ -6,6 +6,12 @@ license = "MIT"
 description = "The Masko player engine: every canvas rule, no video, no network, no screen."
 publish = false
 
+[features]
+default = ["std"]
+# Without std the engine needs only an allocator: the C library for ESP32
+# boards (bindings/c, esp32/masko_engine) builds it that way.
+std = ["serde/std", "serde_json/std"]
+
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }

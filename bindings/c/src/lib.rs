@@ -4,9 +4,56 @@
 // These are C entry points: the caller owns every pointer, and each function
 // checks for null before reading one.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::ffi::CString;
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::ffi::{c_char, CStr};
+use core::ptr;
 use masko_player_engine::{load, Engine, Value};
-use std::ffi::{c_char, CStr, CString};
-use std::ptr;
+
+/// Without std, memory and a crash come from the firmware's C library.
+#[cfg(not(feature = "std"))]
+mod firmware {
+    use core::alloc::{GlobalAlloc, Layout};
+    use core::ffi::c_void;
+
+    extern "C" {
+        fn malloc(size: usize) -> *mut c_void;
+        fn memalign(align: usize, size: usize) -> *mut c_void;
+        fn free(ptr: *mut c_void);
+        fn abort() -> !;
+    }
+
+    struct FirmwareHeap;
+
+    // malloc aligns to 4 bytes on every ESP32; memalign does the rest.
+    unsafe impl GlobalAlloc for FirmwareHeap {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            if layout.align() <= 4 {
+                malloc(layout.size()) as *mut u8
+            } else {
+                memalign(layout.align(), layout.size()) as *mut u8
+            }
+        }
+        unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+            free(ptr as *mut c_void)
+        }
+    }
+
+    #[global_allocator]
+    static HEAP: FirmwareHeap = FirmwareHeap;
+
+    #[panic_handler]
+    fn panic(_: &core::panic::PanicInfo) -> ! {
+        unsafe { abort() }
+    }
+}
 
 fn text(s: *const c_char) -> Option<&'static str> {
     if s.is_null() {
@@ -39,7 +86,7 @@ pub extern "C" fn masko_engine_load(
     if json.is_null() {
         return ptr::null_mut();
     }
-    let bytes = unsafe { std::slice::from_raw_parts(json as *const u8, len) };
+    let bytes = unsafe { core::slice::from_raw_parts(json as *const u8, len) };
     // C strings and ESP-IDF's embedded files end with a zero byte: not JSON.
     let end = bytes.iter().rposition(|&b| b != 0).map_or(0, |i| i + 1);
     let bytes = &bytes[..end];
@@ -49,7 +96,7 @@ pub extern "C" fn masko_engine_load(
         }
         ptr::null_mut()
     };
-    let Ok(source) = std::str::from_utf8(bytes) else {
+    let Ok(source) = core::str::from_utf8(bytes) else {
         return refuse("delivery.invalid: not UTF-8".into());
     };
     match load(source) {

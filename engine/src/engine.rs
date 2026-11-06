@@ -6,8 +6,12 @@
 //! end of a still. Only the player can say when a video clip ends.
 
 use crate::format::{Condition, Edge, Op, RawValue, Release};
+use alloc::borrow::ToOwned;
+use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet, VecDeque};
 
 /// A still pose (no clip) is shown for this long before it counts as one
 /// loop (rules.md 7.4).
@@ -257,12 +261,12 @@ impl Rolls {
 
 struct Graph {
     initial: String,
-    nodes: HashSet<String>,
-    inputs: HashMap<String, (String, RawValue)>,
+    nodes: BTreeSet<String>,
+    inputs: BTreeMap<String, (String, RawValue)>,
     edges: Vec<Edge>,
     /// Each edge's expected length at its own speed, in milliseconds.
     length: Vec<u64>,
-    by_id: HashMap<String, usize>,
+    by_id: BTreeMap<String, usize>,
 }
 
 impl Graph {
@@ -315,7 +319,7 @@ impl Graph {
     /// Fewest moves with clips from `start` to `target`, never through the
     /// poses in `seen` (rules.md 6.2).
     fn hops(&self, start: &str, target: &str, seen: &[&str]) -> Option<u32> {
-        let mut visited: HashSet<&str> = seen.iter().copied().collect();
+        let mut visited: BTreeSet<&str> = seen.iter().copied().collect();
         visited.insert(start);
         let mut queue: VecDeque<(&str, u32)> = VecDeque::from([(start, 0)]);
         while let Some((node, n)) = queue.pop_front() {
@@ -348,7 +352,22 @@ impl Graph {
 
 /// Whole milliseconds, halves to even, as every player computes them.
 fn round_ms(x: f64) -> u64 {
-    x.round_ties_even().max(0.0) as u64
+    round_ties_even(x).max(0.0) as u64
+}
+
+/// `f64::round_ties_even` without std, exact below 2^52 (play times are far
+/// below it).
+fn round_ties_even(x: f64) -> f64 {
+    if !x.is_finite() {
+        return x;
+    }
+    let f = floor(x);
+    let diff = x - f;
+    if diff < 0.5 || (diff == 0.5 && (f as i64) % 2 == 0) {
+        f
+    } else {
+        f + 1.0
+    }
 }
 
 /// The engine of one loaded release.
@@ -357,12 +376,12 @@ pub struct Engine {
     rolls: Rolls,
     now: u64,
     out: Vec<Command>,
-    unplayable: HashSet<usize>,
-    last_extra: HashMap<String, usize>,
+    unplayable: BTreeSet<usize>,
+    last_extra: BTreeMap<String, usize>,
     chain: (u32, u64),
-    held: HashMap<String, Value>,
+    held: BTreeMap<String, Value>,
     /// The held values set with instant (rules.md 5.8).
-    held_instant: HashSet<String>,
+    held_instant: BTreeSet<String>,
     /// The name being turned off with instant, and the start decided before,
     /// while its change is decided (rules.md 5.8).
     off_now: Option<(String, Option<usize>)>,
@@ -375,7 +394,7 @@ pub struct Engine {
     /// The pose clip that ended last on this pose (rules.md 9.5).
     last_ended: Option<usize>,
     /// The edges whose looping sound is playing (rules.md 9.6).
-    looping: HashSet<usize>,
+    looping: BTreeSet<usize>,
 }
 
 impl Engine {
@@ -388,11 +407,11 @@ impl Engine {
             },
             now: 0,
             out: Vec::new(),
-            unplayable: HashSet::new(),
-            last_extra: HashMap::new(),
+            unplayable: BTreeSet::new(),
+            last_extra: BTreeMap::new(),
             chain: (0, 0),
-            held: HashMap::new(),
-            held_instant: HashSet::new(),
+            held: BTreeMap::new(),
+            held_instant: BTreeSet::new(),
             off_now: None,
             fires: Vec::new(),
             pose: None,
@@ -401,7 +420,7 @@ impl Engine {
             loop_count: 0,
             entered_at: 0,
             last_ended: None,
-            looping: HashSet::new(),
+            looping: BTreeSet::new(),
         };
         e.reset_values();
         e
@@ -1571,7 +1590,7 @@ impl Engine {
                 for c in g {
                     if c.input == "node::nodeTime" {
                         let v = Value::from(c.value).number();
-                        for t in [v.ceil(), v.floor() + 1.0] {
+                        for t in [ceil(v), floor(v) + 1.0] {
                             if t >= 0.0 {
                                 let at = self.entered_at.saturating_add(t as u64);
                                 if at > self.now {
@@ -1648,6 +1667,51 @@ impl Engine {
     }
 
     fn take(&mut self) -> Vec<Command> {
-        std::mem::take(&mut self.out)
+        core::mem::take(&mut self.out)
+    }
+}
+
+/// `f64::floor` without std: node times are whole milliseconds, far inside
+/// the range an `i64` holds exactly.
+fn floor(v: f64) -> f64 {
+    if !v.is_finite() {
+        return v;
+    }
+    let t = v as i64 as f64;
+    if t > v {
+        t - 1.0
+    } else {
+        t
+    }
+}
+
+/// `f64::ceil` without std (see `floor`).
+fn ceil(v: f64) -> f64 {
+    if !v.is_finite() {
+        return v;
+    }
+    let t = v as i64 as f64;
+    if t < v {
+        t + 1.0
+    } else {
+        t
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod rounding_tests {
+    use super::{ceil, floor, round_ties_even};
+
+    #[test]
+    fn matches_std_on_play_times() {
+        let mut x = -3.0;
+        while x < 200_000.0 {
+            for v in [x, x + 0.5, x + 0.25, x + 0.75, x + 0.4999999, x + 0.5000001] {
+                assert_eq!(round_ties_even(v), v.round_ties_even(), "round {v}");
+                assert_eq!(floor(v), v.floor(), "floor {v}");
+                assert_eq!(ceil(v), v.ceil(), "ceil {v}");
+            }
+            x += 1.0;
+        }
     }
 }

@@ -1,0 +1,2 @@
+# Compiled engines come from CI (.github/workflows/esp32.yml), not git.
+lib/

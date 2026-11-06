@@ -9,6 +9,12 @@ publish = false
 [lib]
 crate-type = ["staticlib"]
 
+[features]
+default = ["std"]
+# Without std, for ESP32 firmware: the library takes malloc, free, memalign
+# and abort from the firmware's C library (esp32/masko_engine builds it so).
+std = ["masko-player-engine/std", "serde_json/std"]
+
 [dependencies]
-masko-player-engine = { path = "../../engine" }
-serde_json = "1"
+masko-player-engine = { path = "../../engine", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }

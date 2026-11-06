@@ -28,6 +28,21 @@ store compresses it:
 | armeabi-v7a | 444,032 B |
 | x86_64      | 755,336 B |
 
+## On ESP32 boards
+
+Measured on 2026-11-06: `bindings/c` built without the standard library
+(`--no-default-features`, `xtensa-esp32s3-none-elf`) and linked into
+`esp32/examples/engine_demo` with ESP-IDF 5.5.5, then
+`idf.py size-components`:
+
+| Part of the firmware | Flash code | Flash data | Static RAM |
+| -------------------- | ---------: | ---------: | ---------: |
+| `libmasko_player_c.a` | 149,911 B | 12,789 B | 0 B |
+
+So about 163 KB of the 16 MB of flash of an ESP32-S3 board. Built with the
+standard library (`xtensa-esp32s3-espidf`) it was 312 KB. At run time the
+test canvas `otto` holds about 5 KB of heap.
+
 ## Making the web build smaller
 
 Most of the WebAssembly is JSON decoding: serde's generated code for the
