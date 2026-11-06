@@ -1,0 +1,14 @@
+[package]
+name = "masko-player-c"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The Masko player engine as a C library, for ESP32 boards and other C firmware."
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+masko-player-engine = { path = "../../engine" }
+serde_json = "1"

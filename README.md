@@ -13,6 +13,7 @@ call `set` and `fire`, and the canvas decides which clip plays.
 | Android               | `ai.masko:player`            | `android/`      |
 | React Native and Expo | `@masko/player-react-native` | `react-native/` |
 | Flutter               | `masko_player`               | `flutter/`      |
+| ESP32-S3 boards       | ESP-IDF components           | `esp32/`        |
 
 Install:
 
@@ -29,14 +30,18 @@ Install:
   players.
 - **Android**: `implementation("ai.masko:player:0.1.16")` from Maven Central
   ([android/README.md](android/README.md)).
+- **ESP32-S3 boards**: the ESP-IDF components in `esp32/`
+  ([esp32/README.md](esp32/README.md)), written by Marvin Schmid, play
+  `.mkpk` packs; `esp32/masko_engine` runs this engine on the board
+  ([its README](esp32/masko_engine/README.md)).
 
 The React Native and Flutter packages wrap the Swift and Kotlin players;
 they add no rules of their own.
 
 Every player reads a release delivery: the `delivery` object of the Masko
 API's `GET /v1/canvases/{canvasId}/releases/{releaseId}/delivery`, with
-`target=web`, `target=apple` or `target=android` for the files that
-platform plays.
+`target=web`, `target=apple`, `target=android` or `target=esp32` for the
+files that platform plays.
 
 On iPhone, iPad and Mac, an app without a backend can instead give the
 player its canvas's URL, `https://api.masko.ai/v1/canvases/{canvasId}/delivery`,
@@ -73,13 +78,18 @@ Every format's size, and a calculator for your own mascot:
 - `engine/`: the Rust engine; `engine/SIZE.md` has its size.
 - `bindings/wasm/`: the engine for the web (wasm-bindgen).
 - `bindings/uniffi/`: the engine for Swift and Kotlin (UniFFI).
+- `bindings/c/`: the engine for C firmware (`masko_engine.h`), built for
+  ESP32 boards by `esp32/masko_engine`.
+- `esp32/`: the ESP32 player by Marvin Schmid (pack format, packing tools,
+  JPEG decoding, display, playback, storage), with its own `LICENSE`.
 - `examples/`: a small app per platform.
 - `scripts/`: `setup.sh` and `env.sh` (the Rust toolchain, the Android SDK),
   the engine builds for each platform, the copies the React Native and
   Flutter packages take (`build-react-native.sh`, `build-flutter.sh`), the
   Swift engine's release zip
   (`release-apple.sh`, `zip-xcframework.sh`), and `third-party-notices.mjs`.
-- `.github/workflows/ci.yml`: the checks below, on GitHub Actions.
+- `.github/workflows/ci.yml`: the checks below, on GitHub Actions;
+  `.github/workflows/esp32.yml` builds the ESP32 firmware examples.
 
 ## Set up
 
@@ -175,7 +185,8 @@ release, and what to do when a job fails.
 
 ## License
 
-MIT. See `LICENSE`. The compiled engine contains Rust crates under their
+MIT. See `LICENSE`. `esp32/` is MIT too, copyright Marvin Schmid
+(`esp32/LICENSE`). The compiled engine contains Rust crates under their
 own licenses, listed with their texts in `THIRD_PARTY_NOTICES.md`
 (`node scripts/third-party-notices.mjs` writes it). Every package built from
 this repository ships both `LICENSE` and `THIRD_PARTY_NOTICES.md`.

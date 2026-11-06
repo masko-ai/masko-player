@@ -1,0 +1,3 @@
+CONFIG_IDF_TARGET="esp32s3"
+# The engine reads the delivery on this task.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384

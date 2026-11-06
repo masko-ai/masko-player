@@ -1,0 +1,67 @@
+{
+  "name": "mkpk-files-are-clips",
+  "about": "A .mkpk pack, the file ESP32 boards play, on its own or in a size of variants, is a clip like the other formats.",
+  "rules": ["1.4"],
+  "canvas": "otto",
+  "patch": {
+    "edges": {
+      "idle-to-watching": {
+        "videos": {
+          "hevc": null,
+          "webm": null,
+          "mkpk": "https://example.invalid/idle-to-watching.mkpk"
+        }
+      },
+      "loop-watching": {
+        "videos": {
+          "hevc": null,
+          "webm": null,
+          "variants": {
+            "256": {
+              "mkpk": "https://example.invalid/loop-watching-256.mkpk"
+            }
+          }
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "start": true,
+      "expect": {
+        "clock": 0,
+        "pose": "idle",
+        "clip": "loop-idle",
+        "next": null,
+        "events": ["pose:idle", "shown:loop-idle"]
+      }
+    },
+    {
+      "set": ["working", true],
+      "expect": {
+        "next": {
+          "clip": "idle-to-watching",
+          "at": "end"
+        },
+        "events": []
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 4000,
+        "pose": "idle",
+        "clip": "idle-to-watching",
+        "events": ["shown:idle-to-watching"]
+      }
+    },
+    {
+      "clipEnded": true,
+      "expect": {
+        "pose": "watching",
+        "clip": "loop-watching",
+        "events": ["pose:watching", "shown:loop-watching"]
+      }
+    }
+  ]
+}

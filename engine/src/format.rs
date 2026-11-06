@@ -137,6 +137,8 @@ struct WireVideos {
     hevc: Option<String>,
     stacked: Option<String>,
     av1: Option<String>,
+    /// A .mkpk pack, the file ESP32 boards play.
+    mkpk: Option<String>,
     #[serde(default)]
     variants: WireVariants,
 }
@@ -148,6 +150,7 @@ struct WireFiles {
     hevc: Option<String>,
     stacked: Option<String>,
     av1: Option<String>,
+    mkpk: Option<String>,
 }
 
 /// `videos.variants`: true when one of its sizes names a file (rules.md 1.4).
@@ -171,7 +174,8 @@ impl<'de> Deserialize<'de> for WireVariants {
                     any |= f.webm.is_some()
                         || f.hevc.is_some()
                         || f.stacked.is_some()
-                        || f.av1.is_some();
+                        || f.av1.is_some()
+                        || f.mkpk.is_some();
                 }
                 Ok(WireVariants(any))
             }
@@ -622,6 +626,7 @@ fn decode_graph(g: WireGraph) -> Result<Release, LoadError> {
                 || e.videos.hevc.is_some()
                 || e.videos.stacked.is_some()
                 || e.videos.av1.is_some()
+                || e.videos.mkpk.is_some()
                 || e.videos.variants.0,
             sound: e
                 .sound

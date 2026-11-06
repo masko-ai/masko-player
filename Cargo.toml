@@ -1,5 +1,5 @@
 [workspace]
-members = ["engine", "bindings/wasm", "bindings/uniffi", "bindings/uniffi-bindgen"]
+members = ["engine", "bindings/wasm", "bindings/uniffi", "bindings/uniffi-bindgen", "bindings/c"]
 resolver = "2"
 
 [profile.release]

@@ -32,7 +32,8 @@
         "macos",
         "windows",
         "web",
-        "full"
+        "full",
+        "esp32"
       ]
     },
     "mode": {
@@ -94,7 +95,8 @@
             "macos",
             "windows",
             "web",
-            "full"
+            "full",
+            "esp32"
           ]
         },
         "nodes": {
@@ -238,6 +240,10 @@
                     "description": "The stacked layout in AV1, for the Masko app players: in a delivery asked with formats=av1, in place of stacked or hevc.",
                     "type": "string"
                   },
+                  "mkpk": {
+                    "description": "A .mkpk pack (baseline JPEG frames on a solid background) for ESP32 boards: in a delivery asked with target=esp32, alone.",
+                    "type": "string"
+                  },
                   "variants": {
                     "description": "Size variants by pixel size, in manifest mode.",
                     "type": "object",
@@ -259,6 +265,10 @@
                         },
                         "av1": {
                           "description": "The stacked layout in AV1, for the Masko app players: in a delivery asked with formats=av1, in place of stacked or hevc.",
+                          "type": "string"
+                        },
+                        "mkpk": {
+                          "description": "A .mkpk pack (baseline JPEG frames on a solid background) for ESP32 boards: in a delivery asked with target=esp32, alone.",
                           "type": "string"
                         }
                       },

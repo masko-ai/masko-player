@@ -1,0 +1,70 @@
+# The ESP32 player (esp32/) and the engine for it (bindings/c), on every
+# change to them: Marvin Schmid's host tests, then the firmware examples
+# built with ESP-IDF and Espressif's Rust toolchain. Board checks stay manual.
+name: ESP32
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'esp32/**'
+      - 'bindings/c/**'
+      - 'engine/**'
+      - '.github/workflows/esp32.yml'
+  pull_request:
+    paths:
+      - 'esp32/**'
+      - 'bindings/c/**'
+      - 'engine/**'
+      - '.github/workflows/esp32.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: esp32
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg and cJSON
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libcjson-dev
+      - name: Install numpy
+        run: pip install numpy
+      - name: Build a pack from a synthetic clip
+        run: |
+          ffmpeg -y -f lavfi -i "testsrc2=s=480x480:d=2:r=24" -c:v libx264 \
+                 -pix_fmt yuv420p /tmp/clip.mp4
+          tools/masko_pack.py build /tmp/clip.mp4 --crop --size 466 \
+                 -o /tmp/clip.mkpk
+          tools/masko_pack.py verify /tmp/clip.mkpk
+      - name: Run every host test
+        run: tools/test_all.sh /tmp/clip.mkpk
+
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [engine_demo, waveshare_amoled_175]
+    steps:
+      - uses: actions/checkout@v4
+      # Only the Rust compiler: ESP-IDF brings the GCC its version expects.
+      - uses: esp-rs/xtensa-toolchain@v1.7
+        with:
+          buildtargets: esp32s3
+          default: false
+          override: false
+          export: false
+      - uses: espressif/install-esp-idf-action@v1
+        with:
+          version: v5.5.5
+      - name: Build ${{ matrix.example }}
+        run: idf.py -C esp32/examples/${{ matrix.example }} set-target esp32s3 build

@@ -107,7 +107,8 @@ of guessing.
 ### 1.4 Clips that can play
 
 An edge has a clip when its `videos` names at least one file: `webm`,
-`hevc`, `stacked`, `av1`, or one of those in a size of `variants`. A `variants` map
+`hevc`, `stacked`, `av1`, `mkpk` (ESP32 boards), or one of those in a size
+of `variants`. A `variants` map
 whose sizes name no file, an empty one included, is no clip. The player
 picks the file its platform plays; that choice is not a rule of the engine.
 A move without a clip plays as a failed clip (9.4). A pose clip without one
