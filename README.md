@@ -33,7 +33,9 @@ Install:
 - **Windows**: the Rust crate in `windows/` (not on crates.io yet): it keeps
   a canvas's stacked AV1 clips on the computer, decodes them with dav1d and
   draws them in a transparent window. The Masko desktop pets for Windows use
-  it. Build dav1d first with `scripts/build-dav1d-windows.sh`.
+  it. Build dav1d first with `scripts/build-dav1d-windows.sh`. Its clock is
+  awake time, like the Mac's: the hours the PC sleeps, and any stop of the
+  program longer than 5 seconds, do not run the mascot's clips on.
 
 The React Native and Flutter packages wrap the Swift and Kotlin players;
 they add no rules of their own.

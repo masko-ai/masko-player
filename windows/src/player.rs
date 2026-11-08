@@ -1717,3 +1717,116 @@ impl MaskoPlayer {
         true
     }
 }
+
+/// The computer sleeping while the mascot plays (clock.rs): the same real
+/// clips as tests/player.rs, driven by a fake clock moving at real speed.
+#[cfg(test)]
+mod asleep_tests {
+    use super::*;
+    use crate::clock::{FakeHost, SkipStops};
+    use std::time::{Duration, Instant};
+
+    fn fixture(name: &str) -> String {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    /// Two poses on the real clips, as in tests/player.rs.
+    fn delivery() -> String {
+        serde_json::json!({
+            "deliverySchemaVersion": 1,
+            "playerContract": 1,
+            "requires": [],
+            "target": "windows",
+            "mode": "selected",
+            "runtimeGraph": {
+                "runtimeGraphSchemaVersion": 1,
+                "version": "2.1",
+                "name": "Asleep",
+                "initialNode": "idle",
+                "autoPlay": true,
+                "nodes": [{"id": "idle", "name": "Idle"}, {"id": "wave", "name": "Wave"}],
+                "edges": [
+                    {"id": "idle-loop", "source": "idle", "target": "idle", "isLoop": true,
+                     "duration": 0.5, "videos": {"av1": fixture("loop-av1.mp4")}},
+                    {"id": "wave-loop", "source": "wave", "target": "wave", "isLoop": true,
+                     "duration": 0.5, "videos": {"av1": fixture("loop-av1.mp4")}},
+                    {"id": "to-wave", "source": "idle", "target": "wave", "isLoop": false,
+                     "duration": 0.4, "conditions": [{"input": "behavior::pointerHover"}],
+                     "videos": {"av1": fixture("move-av1.mp4")}},
+                    {"id": "wave-back", "source": "wave", "target": "idle", "isLoop": false,
+                     "duration": 0.4,
+                     "conditions": [{"input": "behavior::pointerHover", "value": false}],
+                     "videos": {"av1": fixture("move-av1.mp4")}}
+                ]
+            }
+        })
+        .to_string()
+    }
+
+    fn label(event: &Event) -> String {
+        match event {
+            Event::Clip { clip, .. } => format!("clip:{clip}"),
+            Event::Error { code, detail } => {
+                format!("error:{code}:{}", detail.clone().unwrap_or_default())
+            }
+            other => format!("{other:?}"),
+        }
+    }
+
+    /// Pumps as an app's loop would, the fake clock moving at real speed,
+    /// until `clip` was shown `count` times (10 seconds at most).
+    fn play_until(
+        player: &mut MaskoPlayer,
+        fake: &FakeHost,
+        log: &mut Vec<String>,
+        clip: &str,
+        count: usize,
+    ) {
+        let start = Instant::now();
+        let mut last = Instant::now();
+        while log.iter().filter(|e| *e == clip).count() < count {
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "{clip} x{count} not seen: {log:?}"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+            let now = Instant::now();
+            fake.advance(now.duration_since(last).as_secs_f64());
+            last = now;
+            player.pump();
+            log.extend(player.take_events().iter().map(label));
+        }
+    }
+
+    /// Plays, sleeps eight hours in the middle of a loop, plays on; what the
+    /// player said after the night.
+    fn a_night(host: Box<dyn Host>, fake: &FakeHost, name: &str) -> Vec<String> {
+        let dir = std::env::temp_dir().join(format!("masko-asleep-{name}-{}", std::process::id()));
+        let mut options = Options::new(&dir, (96, 96));
+        options.audio = false;
+        let mut player = MaskoPlayer::from_delivery_with(&delivery(), options, host);
+        let mut log = Vec::new();
+        play_until(&mut player, fake, &mut log, "clip:idle-loop", 2);
+        let night = log.len();
+        fake.advance(8.0 * 3600.0);
+        let seen = log.iter().filter(|e| *e == "clip:idle-loop").count();
+        play_until(&mut player, fake, &mut log, "clip:idle-loop", seen + 3);
+        player.destroy();
+        let _ = std::fs::remove_dir_all(dir);
+        log.split_off(night)
+    }
+
+    #[test]
+    fn a_night_asleep_while_playing_changes_nothing() {
+        let fake = FakeHost::new();
+        let after = a_night(Box::new(SkipStops::new(fake.clone())), &fake, "skip");
+        assert!(
+            !after.iter().any(|e| e.starts_with("error:")),
+            "after the night: {after:?}"
+        );
+    }
+}
