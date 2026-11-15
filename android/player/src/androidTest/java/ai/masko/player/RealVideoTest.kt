@@ -60,13 +60,14 @@ class RealVideoTest {
     @Test
     fun stackedClipsPlayAndSwapOnlyAfterTheirFirstFrame() = playsAndSwaps(DELIVERY, "swap")
 
-    /** The same clips in AV1 (`videos.av1`), on the phone's own AV1 decoder. */
+    /** The same clips in AV1 (`videos.av1`), on the phone's own AV1 decoder, hardware or software. */
     @Test
     fun av1ClipsPlayAndSwapOnlyAfterTheirFirstFrame() = playsAndSwaps(av1(DELIVERY), "swap-av1")
 
-    /** Android 10 and later ship an AV1 decoder, so the player asks the delivery for AV1. */
+    /** The player asks the delivery for AV1 only when this phone decodes it in hardware. */
     @Test
-    fun thisPhoneAsksForAv1() = assertEquals("av1", MaskoPlayer.formats)
+    fun thisPhoneAsksForAv1OnlyWithAHardwareDecoder() =
+        assertEquals(if (MaskoPlayer.av1Decoder == Av1Decoder.HARDWARE) "av1" else "", MaskoPlayer.formats)
 
     private fun playsAndSwaps(delivery: String, name: String) {
         ActivityScenario.launch(TestActivity::class.java).use { scenario ->

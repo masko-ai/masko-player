@@ -101,8 +101,9 @@ A delivery names `av1` files only when it is asked for them. Each app player
 has `formats`, the formats to add to the delivery request
 (`formats=<formats>`): `av1` on Apple devices, which decode AV1 with the
 device's AV1 decoder or with dav1d inside the player, and `av1` on Android
-phones that have an AV1 decoder (Android 10 and later ship one), else
-nothing. The server then gives each clip that has an AV1 file its `av1` in
+phones that decode AV1 in hardware, else nothing. Android 10 and later ship
+a software AV1 decoder, but on some phones its frames reach the screen as
+stripes (a Xiaomi Mi A3 on Android 11), so it does not count. The server then gives each clip that has an AV1 file its `av1` in
 place of `stacked` or `hevc`, so the player never chooses between files or
 tries one after another. A delivery asked without `formats` is the one
 players without AV1 have always read.

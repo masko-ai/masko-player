@@ -99,7 +99,7 @@ reports `clip_failed`.
   else its `videos.stacked` (colour above, transparency below). Ask the
   delivery with `target=apple` on iOS, `target=android` on Android, and
   `formats=` the value of `maskoFormats()`: `av1` on every iPhone and on
-  Android phones with an AV1 decoder, which makes each file two to three
+  Android phones that decode AV1 in hardware, which makes each file two to three
   times lighter (`../spec/player.md`, "Asking for AV1").
 
 ## Install

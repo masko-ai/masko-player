@@ -5,6 +5,7 @@ import ai.masko.player.engine.EngineCommand
 import ai.masko.player.engine.LoadFailure
 import ai.masko.player.engine.MaskoEngine
 import android.media.MediaCodecList
+import android.os.Build
 import org.json.JSONObject
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.random.Random
@@ -745,17 +746,24 @@ class MaskoPlayer internal constructor(
     companion object {
         /**
          * The `formats` to ask the release delivery for (player.md, "Asking
-         * for AV1"): `av1` when this phone has an AV1 decoder, which Android
-         * 10 and later ship, else empty, and the delivery keeps its stacked
-         * H.264 files.
+         * for AV1"): `av1` when this phone decodes AV1 in hardware, else
+         * empty, and the delivery keeps its stacked H.264 files. The software
+         * decoder Android 10 and later ship does not count: on some phones
+         * its frames reach the screen as stripes.
          */
         @JvmStatic
-        val formats: String by lazy {
-            val av1 = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
-                !info.isEncoder && info.supportedTypes.any { it.equals("video/av01", ignoreCase = true) }
+        val formats: String by lazy { if (av1Decoder == Av1Decoder.HARDWARE) "av1" else "" }
+
+        /** How this phone decodes AV1, so an app can say why it plays the H.264 files. */
+        @JvmStatic
+        val av1Decoder: Av1Decoder by lazy { runCatching { av1Decoder(installedDecoders()) }.getOrDefault(Av1Decoder.NONE) }
+
+        private fun installedDecoders(): List<DecoderInfo> =
+            MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filterNot { it.isEncoder }.map { info ->
+                // Before Android 10 a codec cannot say it runs in hardware.
+                val hardware = Build.VERSION.SDK_INT >= 29 && info.isHardwareAccelerated && !info.isSoftwareOnly
+                DecoderInfo(info.supportedTypes.toList(), hardware)
             }
-            if (av1) "av1" else ""
-        }
 
         /** Refresh this long before the links expire, or halfway when they expire sooner than twice this. */
         private const val REFRESH_LEAD_MS = 5 * 60_000L
@@ -763,6 +771,28 @@ class MaskoPlayer internal constructor(
         private const val RETRY_MS = 30_000L
         /** A getDelivery that has not replied after this long has failed. */
         private const val REPLY_TIMEOUT_MS = 60_000L
+    }
+}
+
+/** How a phone decodes AV1 (player.md, "Asking for AV1"). */
+enum class Av1Decoder {
+    /** A hardware decoder: the player asks for AV1. */
+    HARDWARE,
+    /** Only a software decoder: the player plays the stacked H.264 files. */
+    SOFTWARE,
+    /** No AV1 decoder: the player plays the stacked H.264 files. */
+    NONE,
+}
+
+/** One video decoder: the types it decodes and whether it runs in hardware. */
+internal class DecoderInfo(val types: List<String>, val hardware: Boolean)
+
+internal fun av1Decoder(decoders: List<DecoderInfo>): Av1Decoder {
+    val av1 = decoders.filter { decoder -> decoder.types.any { it.equals("video/av01", ignoreCase = true) } }
+    return when {
+        av1.any { it.hardware } -> Av1Decoder.HARDWARE
+        av1.isNotEmpty() -> Av1Decoder.SOFTWARE
+        else -> Av1Decoder.NONE
     }
 }
 
