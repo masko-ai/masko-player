@@ -248,8 +248,9 @@ public final class MaskoPlayer {
     /// player asks for a newer release at once and every hour, keeps all its
     /// files, then switches to it when the mascot's first pose starts its
     /// loop again. Before the first delivery is in, values set choose the
-    /// first pose and fires are dropped.
-    public convenience init(url: URL, appKey: String, autoPlay: Bool? = nil) {
+    /// first pose and fires are dropped. The app key may instead sit inside
+    /// the URL (`...?key=masko_app_...`); then `appKey` is left out.
+    public convenience init(url: URL, appKey: String? = nil, autoPlay: Bool? = nil) {
         let release = KeptRelease(url: url, appKey: appKey)
         self.init(
             release: release, autoPlay: autoPlay, stage: AVStage(), loader: FileCache(keptIn: release.files),

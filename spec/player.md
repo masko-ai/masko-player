@@ -148,7 +148,9 @@ does not apply: the links are the app's.
 An app without a backend gives the player its canvas's URL,
 `https://api.masko.ai/v1/canvases/{canvasId}/delivery`, and an **app key**
 of its mascot (`masko_app_...`), which can only read that mascot's released
-canvases. The player then does what a backend would:
+canvases. The key may instead sit inside the URL, `...delivery?key=masko_app_...`:
+the player then sends no `Authorization` header and keeps the URL's query as
+it is. The player then does what a backend would:
 
 1. **Asks.** `GET` the URL with `target` for its platform and its
    `formats`, `Authorization: Bearer <app key>`, and `Masko-Install-Id`, a

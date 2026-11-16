@@ -28,7 +28,7 @@ Install:
 - **Flutter**: `flutter pub add masko_player`
   ([flutter/README.md](flutter/README.md)); it carries the iOS and Android
   players.
-- **Android**: `implementation("ai.masko:player:0.1.17")` from Maven Central
+- **Android**: `implementation("ai.masko:player:0.1.18")` from Maven Central
   ([android/README.md](android/README.md)).
 - **ESP32-S3 boards**: the ESP-IDF components in `esp32/`
   ([esp32/README.md](esp32/README.md)), written by Marvin Schmid, play
@@ -45,7 +45,8 @@ files that platform plays.
 
 On iPhone, iPad and Mac, an app without a backend can instead give the
 player its canvas's URL, `https://api.masko.ai/v1/canvases/{canvasId}/delivery`,
-and an app key of its mascot: the player asks for the latest release, keeps
+and an app key of its mascot (or one link with the key inside,
+`...delivery?key=masko_app_...`): the player asks for the latest release, keeps
 every file for offline play and switches to newer releases by itself
 (`spec/player.md`, "A canvas from its URL").
 

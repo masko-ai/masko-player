@@ -30,10 +30,10 @@ export interface ReleasePlayer {
 }
 
 export interface CanvasSource {
-  /** `https://api.masko.ai/v1/canvases/{canvasId}/delivery` */
+  /** `https://api.masko.ai/v1/canvases/{canvasId}/delivery`, possibly with `?key=masko_app_...` */
   url: string;
-  /** An app key of the canvas's mascot (`masko_app_...`). */
-  appKey: string;
+  /** An app key of the canvas's mascot (`masko_app_...`); left out when the URL carries it. */
+  appKey?: string;
 }
 
 export interface CanvasDeps {
@@ -114,7 +114,8 @@ export function playCanvas(source: CanvasSource, deps: CanvasDeps, options: { so
   async function ask(url: string): Promise<Release> {
     const u = new URL(url);
     if (!u.searchParams.has('target')) u.searchParams.set('target', 'web');
-    const headers: Record<string, string> = { Authorization: `Bearer ${source.appKey}` };
+    // A key given on its own goes in the header; one inside the URL travels with it.
+    const headers: Record<string, string> = source.appKey ? { Authorization: `Bearer ${source.appKey}` } : {};
     const install = deps.installId();
     if (install) headers['Masko-Install-Id'] = install;
     const res = await deps.fetch(u.toString(), { headers });

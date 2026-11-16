@@ -25,10 +25,13 @@ export type MountOptions = MountCommon &
   (
     | { delivery: DeliveryInput; clip?: undefined; url?: undefined }
     | {
-        /** The canvas's URL: `https://api.masko.ai/v1/canvases/{canvasId}/delivery`. */
+        /**
+         * The canvas's URL: `https://api.masko.ai/v1/canvases/{canvasId}/delivery`,
+         * or the same with its app key inside (`...?key=masko_app_...`).
+         */
         url: string;
-        /** An app key of the canvas's mascot (`masko_app_...`), safe in a page. */
-        appKey: string;
+        /** An app key of the canvas's mascot (`masko_app_...`), safe in a page; not needed when the URL carries it. */
+        appKey?: string;
         delivery?: undefined;
         clip?: undefined;
       }
@@ -113,7 +116,7 @@ const INSTALL_KEY = 'masko-install-id';
  * newer release's root shows over the one on screen until its first clip is
  * there, then takes its place.
  */
-function mountCanvas(element: HTMLElement, url: string, appKey: string, options: MountCommon): MaskoHandle {
+function mountCanvas(element: HTMLElement, url: string, appKey: string | undefined, options: MountCommon): MaskoHandle {
   const win = element.ownerDocument.defaultView ?? window;
   let shown: HTMLElement | null = null;
   return playCanvas(

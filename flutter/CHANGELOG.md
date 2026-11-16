@@ -1,3 +1,9 @@
+## 0.1.18
+
+- No change to the Flutter API or to how mascots play. On the web and on
+  iPhone, iPad and Mac, a canvas URL may now carry its app key
+  (`...delivery?key=masko_app_...`): the player then needs no separate key.
+
 ## 0.1.17
 
 - No change to the Flutter API or to how mascots play. The engine inside

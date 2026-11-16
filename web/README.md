@@ -64,7 +64,7 @@ Without a build step, one file with the engine inlined,
 script that defines `window.MaskoPlayer`, not a module to import.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.17/dist/masko-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@masko/player@0.1.18/dist/masko-player.js"></script>
 <script>
   const mascot = MaskoPlayer.mount(document.getElementById('mascot'), { delivery });
 </script>
@@ -84,6 +84,11 @@ mountMascot(element, {
 });
 // React: <MaskoPlayer url="https://api.masko.ai/v1/canvases/CANVAS_ID/delivery" appKey="masko_app_..." />
 // Script tag: MaskoPlayer.mount(element, { url, appKey })
+
+// From 0.1.18, the key may sit inside the URL: one link is all the page needs.
+mountMascot(element, {
+  url: 'https://api.masko.ai/v1/canvases/CANVAS_ID/delivery?key=masko_app_...'
+});
 ```
 
 The player asks for the canvas's newest release (`target=web`, with a

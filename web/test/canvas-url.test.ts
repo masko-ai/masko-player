@@ -59,13 +59,16 @@ class FakePlayer implements ReleasePlayer {
   preview = { showPose() {}, playMove() {} };
 }
 
-function setup(answers: (() => { status: number; body: unknown })[]) {
+function setup(
+  answers: (() => { status: number; body: unknown })[],
+  source: { url: string; appKey?: string } = { url: URL_, appKey: KEY }
+) {
   const asked: { url: string; headers: Record<string, string> }[] = [];
   const timers: { fn: () => void; ms: number; id: number }[] = [];
   const players: FakePlayer[] = [];
   let id = 0;
   const handle = playCanvas(
-    { url: URL_, appKey: KEY },
+    source,
     {
       fetch: async (url, init) => {
         asked.push({ url, headers: init.headers });
@@ -117,6 +120,17 @@ test('asks with the app key and keeps values set before the first release', asyn
   assert.deepEqual(players[0].calls, ['set behavior::working=true']);
   handle.fire('action::cheer');
   assert.deepEqual(players[0].calls.at(-1), 'fire action::cheer');
+});
+
+test('a link that carries its key asks with it and sends no header', async () => {
+  const link = `${URL_}?key=${KEY}`;
+  const { asked, players } = setup([ok('r1', 'rel-1')], { url: link });
+  await flush();
+  assert.equal(asked[0].url, `${link}&target=web`);
+  assert.equal(asked[0].headers.Authorization, undefined);
+  await players[0].getDelivery();
+  assert.match(asked[1].url, /\/releases\/rel-1\/delivery\?key=/);
+  assert.equal(asked[1].headers.Authorization, undefined);
 });
 
 test("renews links from the release's own URL, and the same release only swaps links", async () => {

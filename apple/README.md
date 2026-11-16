@@ -73,6 +73,10 @@ its mascot, which can only read that mascot's released canvases:
 let player = MaskoPlayer(
     url: URL(string: "https://api.masko.ai/v1/canvases/CANVAS_ID/delivery")!,
     appKey: "masko_app_...")
+
+// From 0.1.18, the key may sit inside the URL: one link is all the app needs.
+let player = MaskoPlayer(
+    url: URL(string: "https://api.masko.ai/v1/canvases/CANVAS_ID/delivery?key=masko_app_...")!)
 ```
 
 The player asks for the latest release (`target=apple`, `formats=av1`),

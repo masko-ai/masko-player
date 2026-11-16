@@ -136,6 +136,17 @@ final class CanvasURLTests: XCTestCase {
         XCTAssertEqual(network.asked[1].value(forHTTPHeaderField: "Masko-Install-Id"), install, "kept by this copy")
     }
 
+    func testAURLThatCarriesItsKeyIsAskedWithItAndNoHeader() async throws {
+        network.latest = Self.release("r1")
+        let url = URL(string: "https://api.masko.test/v1/canvases/c1/delivery?key=masko_app_test")!
+        let release = KeptRelease(url: url, appKey: nil, root: root, network: network.network)
+        _ = try await release.latest()
+        let asked = network.asked[0]
+        let query = URLComponents(url: asked.url!, resolvingAgainstBaseURL: false)!.queryItems!
+        XCTAssertEqual(query.first, URLQueryItem(name: "key", value: "masko_app_test"))
+        XCTAssertNil(asked.value(forHTTPHeaderField: "Authorization"))
+    }
+
     func testARefusalIsAFailureWithItsMessage() async {
         network.status = 401
         let release = kept()

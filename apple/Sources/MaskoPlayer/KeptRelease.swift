@@ -27,7 +27,8 @@ final class KeptRelease {
     let request: URL
     /// This canvas's kept files.
     let files: URL
-    private let appKey: String
+    /// Nil when the canvas URL carries its key (`?key=masko_app_...`).
+    private let appKey: String?
     private let folder: URL
     private let root: URL
     private let network: Network
@@ -40,7 +41,7 @@ final class KeptRelease {
         return app.appendingPathComponent("MaskoPlayer", isDirectory: true)
     }
 
-    init(url: URL, appKey: String, root: URL = KeptRelease.root, network: Network = .real) {
+    init(url: URL, appKey: String?, root: URL = KeptRelease.root, network: Network = .real) {
         request = KeptRelease.request(url)
         self.appKey = appKey
         self.root = root
@@ -109,7 +110,9 @@ final class KeptRelease {
     /// Asks the canvas URL for its latest release and returns its delivery.
     func latest() async throws -> Data {
         var ask = URLRequest(url: request, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        ask.setValue("Bearer \(appKey)", forHTTPHeaderField: "Authorization")
+        if let appKey, !appKey.isEmpty {
+            ask.setValue("Bearer \(appKey)", forHTTPHeaderField: "Authorization")
+        }
         ask.setValue(installId(), forHTTPHeaderField: "Masko-Install-Id")
         let (body, response) = try await network.data(ask)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
