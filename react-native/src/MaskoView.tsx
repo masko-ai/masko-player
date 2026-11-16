@@ -44,9 +44,13 @@ export interface NativeProps extends ViewProps {
   delivery: string;
   /** A lone clip's file for this platform, played in place of `delivery`. */
   clip?: string;
+  /** A canvas's delivery URL, played in place of `delivery`: the native player fetches it. */
+  url?: string;
+  /** The app key for `url`, when the URL does not carry one. */
+  appKey?: string;
   autoPlay?: boolean;
   sound: boolean;
-  /** The app passed `getDelivery`: the player asks for fresh links through `onDeliveryRequest`. */
+  /** The app passed `getDelivery` with a delivery: the player asks for fresh links through `onDeliveryRequest`. */
   refreshes: boolean;
   onPose: (event: NativeEvent<MaskoEvents['pose']>) => void;
   onClip: (event: NativeEvent<MaskoEvents['clip']>) => void;
@@ -78,6 +82,8 @@ function MaskoViewWithRef(props: MaskoViewProps, ref: ForwardedRef<MaskoHandle>)
   const {
     delivery,
     clip,
+    url,
+    appKey,
     getDelivery,
     sound,
     autoPlay,
@@ -98,12 +104,20 @@ function MaskoViewWithRef(props: MaskoViewProps, ref: ForwardedRef<MaskoHandle>)
   // getDelivery given or taken away loads the release again (the mascot
   // restarts), with the latest links.
   // A lone clip plays this platform's file: HEVC on iOS, the stacked MP4 on Android.
+  // A canvas URL needs no delivery: the native player fetches it and its
+  // newer releases itself, so getDelivery plays no part there.
   const clipFile = clip ? ((Platform.OS === 'ios' ? clip.hevc : clip.stacked) ?? '') : undefined;
+  const canvasUrl = clipFile === undefined && url !== undefined ? url : undefined;
   const key = useMemo(
-    () => (clipFile !== undefined ? `clip:${clipFile}` : releaseKey(delivery!)),
-    [delivery, clipFile]
+    () =>
+      clipFile !== undefined
+        ? `clip:${clipFile}`
+        : canvasUrl !== undefined
+          ? `url:${canvasUrl}`
+          : releaseKey(delivery!),
+    [delivery, clipFile, canvasUrl]
   );
-  const refreshes = getDelivery !== undefined;
+  const refreshes = getDelivery !== undefined && canvasUrl === undefined;
   const json = useMemo(
     () => (latest.current.delivery === undefined ? '' : deliveryJson(latest.current.delivery)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,12 +134,12 @@ function MaskoViewWithRef(props: MaskoViewProps, ref: ForwardedRef<MaskoHandle>)
   // New links for the same release: the native player swaps them in and keeps playing.
   const given = useRef({ key, json });
   useEffect(() => {
-    if (delivery === undefined) return;
+    if (delivery === undefined || canvasUrl !== undefined) return;
     const fresh = deliveryJson(delivery);
     const last = given.current;
     given.current = { key, json: fresh };
     if (last.key === key && last.json !== fresh) native.current?.updateDelivery(fresh).catch(() => undefined);
-  }, [delivery, key]);
+  }, [delivery, key, canvasUrl]);
 
   // getDelivery requests the native view waits on. Unmounting answers them
   // with null (a view already gone ignores it), and their late answers are
@@ -205,6 +219,8 @@ function MaskoViewWithRef(props: MaskoViewProps, ref: ForwardedRef<MaskoHandle>)
     ref: native,
     delivery: json,
     clip: clipFile || undefined,
+    url: canvasUrl,
+    appKey: canvasUrl !== undefined ? appKey : undefined,
     autoPlay,
     sound: sound ?? true,
     refreshes

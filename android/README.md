@@ -14,7 +14,7 @@ default). From Maven Central:
 ```kotlin
 // settings.gradle.kts: repositories { google(); mavenCentral() }
 dependencies {
-    implementation("ai.masko:player:0.1.18")
+    implementation("ai.masko:player:0.1.19")
 }
 ```
 
@@ -132,6 +132,46 @@ right after `load` hear the first pose.
 - **Extra clips** are rolled with a random seed of each player, so two
   mascots on one screen do not play the same extras.
 
+## A canvas from its URL
+
+An app without a backend plays a canvas from one link: its URL and an app key
+of its mascot (`masko_app_...`), which can only read that mascot's released
+canvases (`../spec/player.md`, "A canvas from its URL").
+
+```kotlin
+val player = view.loadCanvas(
+    "https://api.masko.ai/v1/canvases/<canvasId>/delivery",
+    appKey = "masko_app_...",
+)
+// or with the key inside the link, and no appKey:
+view.loadCanvas("https://api.masko.ai/v1/canvases/<canvasId>/delivery?key=masko_app_...")
+player.set("behavior::working", true)          // the same player as view.load gives
+```
+
+- **Asks**: `GET` the URL with `target=android` and
+  `formats=${MaskoPlayer.formats}` added when the URL does not name them (the
+  rest of its query is kept as is), `Authorization: Bearer <appKey>` when
+  `appKey` is given, and `Masko-Install-Id`, a random UUID kept in the app's
+  files. The answer's `data.delivery` plays.
+- **Keeps**: every clip, still and sound of the release is downloaded once
+  into `noBackupFilesDir/MaskoPlayer/<digest of the URL without its
+  query>/files`, named after the link's path, and the release is kept
+  (`release.json`) once all its files are. At the next launch the kept
+  release plays at once from its files, also offline; files no kept release
+  plays are deleted first.
+- **Updates**: the player asks again at once and every hour. The same
+  release only renews its links; a newer one is checked by the engine, kept
+  whole, then takes over when the initial pose's loop starts again, with the
+  values the app set. Links are also renewed from the release's own URL
+  (`.../releases/{releaseId}/delivery`, same query) before they expire,
+  unless `Options.getDelivery` is given.
+- **First launch**: until the first delivery is in, values set choose the
+  first pose and fires are dropped. A first delivery that does not come is
+  asked for again 30 seconds later, then twice as long each time, up to an
+  hour. A failure to ask or to download is an `onError` `refresh_failed`
+  with what failed; the player goes on with what it has.
+- `destroy()` stops asking and leaves the kept files.
+
 ## Lifecycle
 
 - **Off screen**: while the view, or any parent, is `GONE` or `INVISIBLE`,
@@ -208,7 +248,7 @@ The build needs Java 17; Gradle downloads it when this machine has none (the
 foojay toolchain resolver in `settings.gradle.kts`).
 
 `./gradlew :player:publishReleasePublicationToLocalRepository` writes
-`ai.masko:player:0.1.18` to `player/build/repo` (the React Native package
+`ai.masko:player:0.1.19` to `player/build/repo` (the React Native package
 takes it from there; `../scripts/build-react-native.sh` runs it), with its
 sources and javadoc jars, signed when a signing key is set.
 
@@ -279,6 +319,11 @@ cd android
 - `ScenariosTest`: every `../spec/fixtures/*.json` through the Kotlin
   binding, with a port of the ideal player of `engine/tests/scenarios.rs`.
   `-Pmasko.fixtures=<dir>` runs another folder.
+- `CanvasURLTest`: a canvas from its URL against a fake network: the
+  request (query, key header or key in the URL, install id), files kept once
+  and only whole, offline play, links renewed, a newer release taking over
+  when the initial loop starts again, values carried over, a refused
+  release, the backoff of a first delivery that does not come.
 - `MaskoPlayerTest`: the player against a fake video layer: the swap after
   the first frame, loop restarts, ends and failures, missing files, preload,
   sounds and voices, events, position, pause and play, `autoPlay`, signed

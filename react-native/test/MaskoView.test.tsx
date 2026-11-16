@@ -197,6 +197,67 @@ describe('clip', () => {
   });
 });
 
+describe('url', () => {
+  const canvas = 'https://api.masko.ai/v1/canvases/can_1/delivery';
+
+  it('passes a canvas URL with its key inside to the native view, with no delivery', () => {
+    render(<MaskoView url={`${canvas}?key=masko_app_x`} autoPlay={false} sound={false} />);
+    expect(props().url).toBe(`${canvas}?key=masko_app_x`);
+    expect(props().appKey).toBeUndefined();
+    expect(props().delivery).toBe('');
+    expect(props().clip).toBeUndefined();
+    expect(props().autoPlay).toBe(false);
+    expect(props().sound).toBe(false);
+    expect(props().refreshes).toBe(false);
+  });
+
+  it('passes the app key given apart', () => {
+    render(<MaskoView url={canvas} appKey="masko_app_y" />);
+    expect(props().url).toBe(canvas);
+    expect(props().appKey).toBe('masko_app_y');
+  });
+
+  it('ignores getDelivery: the native player fetches the canvas itself', () => {
+    const getDelivery = jest.fn(() => delivery);
+    const view = render(<MaskoView url={canvas} appKey="masko_app_y" getDelivery={getDelivery} />);
+    expect(props().refreshes).toBe(false);
+    view.rerender(<MaskoView url={canvas} appKey="masko_app_y" />);
+    expect(props().refreshes).toBe(false);
+    expect(getDelivery).not.toHaveBeenCalled();
+    expect(fake.calls.updateDelivery).not.toHaveBeenCalled();
+  });
+
+  it('moves between a URL and a delivery', () => {
+    const view = render(<MaskoView url={canvas} appKey="masko_app_y" />);
+    view.rerender(<MaskoView delivery={delivery} />);
+    expect(props().url).toBeUndefined();
+    expect(props().appKey).toBeUndefined();
+    expect(JSON.parse(props().delivery)).toEqual(delivery);
+    view.rerender(<MaskoView url={canvas} />);
+    expect(props().url).toBe(canvas);
+    expect(props().delivery).toBe('');
+    expect(fake.calls.updateDelivery).not.toHaveBeenCalled();
+  });
+
+  it('drives the player through the ref and hears its events as with a delivery', () => {
+    const ref = createRef<MaskoHandle>();
+    const onPose = jest.fn();
+    render(<MaskoView ref={ref} url={canvas} appKey="masko_app_y" onPose={onPose} />);
+    ref.current!.set('working', true);
+    ref.current!.fire('celebrate', { instant: true });
+    props().onPose({ nativeEvent: { pose: 'idle' } });
+    expect(fake.calls.setBool.mock.calls).toEqual([['working', true, false]]);
+    expect(fake.calls.fire.mock.calls).toEqual([['celebrate', true]]);
+    expect(onPose).toHaveBeenCalledWith({ pose: 'idle' });
+  });
+
+  it('leaves url and appKey out for a delivery', () => {
+    render(<MaskoView delivery={delivery} />);
+    expect(props().url).toBeUndefined();
+    expect(props().appKey).toBeUndefined();
+  });
+});
+
 describe('ref', () => {
   it('maps every call to its native call', async () => {
     const ref = createRef<MaskoHandle>();

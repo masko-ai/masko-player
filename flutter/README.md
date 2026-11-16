@@ -41,7 +41,8 @@ reports `clip_failed`.
 - `delivery` is the `delivery` object of
   `GET /v1/canvases/{canvasId}/releases/{releaseId}/delivery` as a `Map`, its
   JSON, or the response around it. Fetch it on your backend with your API
-  key; never put the key in an app.
+  key; never put the key in an app. Without a backend, give `url` instead
+  (below).
 - The controller: `set(name, value)` with a `bool` or a number,
   `fire(name)` (both take `instant: true`: what that value starts happens
   now; an Any State start goes straight into its target pose, skipping
@@ -102,11 +103,39 @@ reports `clip_failed`.
   Android phones with an AV1 decoder, which makes each file two to three
   times lighter (`../spec/player.md`, "Asking for AV1").
 
+## A canvas from its URL
+
+An app with no backend gives `MaskoView` its canvas's URL and an app key of
+its mascot (`masko_app_...`), in place of `delivery`:
+
+```dart
+MaskoView(
+  controller: mascot,
+  url: 'https://api.masko.ai/v1/canvases/CANVAS_ID/delivery?key=masko_app_...',
+);
+
+// Or the key apart:
+MaskoView(
+  controller: mascot,
+  url: 'https://api.masko.ai/v1/canvases/CANVAS_ID/delivery',
+  appKey: 'masko_app_...',
+);
+```
+
+The native player asks the URL for the canvas's latest release, keeps every
+file on the device so the mascot also plays offline, asks again every hour
+and switches to a newer release on its own (`../spec/player.md`, "A canvas
+from its URL"). An app key can only read its mascot's released canvases, so
+it may ship in the app. `getDelivery` is not used; `set`, `fire`, `sound`,
+`autoPlay` and the events work as with a delivery. A failure to ask or to
+download gives `error` `refresh_failed`, and the player goes on with what it
+has. A new `url` or `appKey` loads a new player.
+
 ## Install
 
 ```yaml
 dependencies:
-  masko_player: ^0.1.18
+  masko_player: ^0.1.19
 ```
 
 The package carries both native players: the Swift player with the

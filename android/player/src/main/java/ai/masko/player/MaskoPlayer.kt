@@ -13,7 +13,8 @@ import kotlin.random.Random
  * Plays one Masko mascot release. Apps call [set] and [fire]; the canvas,
  * through the shared engine, decides which clip plays (spec/player.md).
  *
- * Make one with [MaskoPlayerView.load]. Call every method on the main thread:
+ * Make one with [MaskoPlayerView.load], or [MaskoPlayerView.loadCanvas] for a
+ * canvas read from its URL. Call every method on the main thread:
  * a call from another thread throws [IllegalStateException]. Events reach
  * listeners on the main thread, starting on the next main-thread turn, so
  * listeners added right after loading hear the first pose.
@@ -24,7 +25,7 @@ class MaskoPlayer internal constructor(
     private val stage: Stage,
     private val sounds: Sounds,
     private val scheduler: Scheduler,
-    elapsedMs: () -> Long,
+    private val elapsedMs: () -> Long,
     private val wallClockMs: () -> Long,
     private val options: Options,
     /** The engine's random source for extra clips (rules.md 7.3): its own for every player. */
@@ -35,6 +36,14 @@ class MaskoPlayer internal constructor(
      * the delivery: its delivery waits for the file's length (player.md, "One clip").
      */
     clip: String? = null,
+    /**
+     * A canvas read from its URL (player.md, "A canvas from its URL"): the
+     * player asks it for the latest release and keeps its files; [deliveryJson]
+     * and [clip] are then ignored.
+     */
+    private val kept: KeptRelease? = null,
+    /** Where [kept]'s network and file work runs. */
+    private val background: Background? = null,
 ) {
     /** How the player starts and refreshes its links. */
     class Options(
@@ -117,7 +126,7 @@ class MaskoPlayer internal constructor(
     private val listeners = CopyOnWriteArrayList<Listener>()
     private lateinit var engine: MaskoEngine
     private var delivery = Delivery.NONE
-    private val clock = PlayClock(elapsedMs)
+    private var clock = PlayClock(elapsedMs)
     private val slots = stage.slots
 
     private var started = false
@@ -170,9 +179,41 @@ class MaskoPlayer internal constructor(
     /** Counts the asks: a reply to an older one is dropped. */
     private var asks = 0
 
+    // A canvas read from its URL (player.md, "A canvas from its URL").
+
+    /** The `release_id` of the release playing, to ask it again for fresh links. */
+    private var releaseId: String? = null
+    /** A newer release whose files are all kept, waiting for the initial pose's loop to start again. */
+    private var nextRelease: KeptRelease.Release? = null
+    /** The restart of the initial pose's loop the waiting release takes over from, once the commands running now are done. */
+    private var takeOver: Pair<String, Double>? = null
+    /** The old release's clip, left on screen until the new release's first clip has decoded. */
+    private var replaced: Showing? = null
+    /** The values the app set, carried over to a newer release: Boolean or Double. */
+    private val values = LinkedHashMap<String, Any>()
+    /** Whether the app chose to play or pause; otherwise the first delivery's graph decides. */
+    private var pauseChosen = options.autoPlay != null
+    /** Whether the canvas URL is being asked, or a release kept. */
+    private var checking = false
+    /** When the canvas URL is asked next, on the wall clock; null while it is being asked. */
+    internal var checkAt: Long? = null
+        private set
+    /** How long until a first delivery that did not come is asked for again; it doubles up to an hour. */
+    private var retry = RETRY_MS
+    private val checkTask = Runnable { check() }
+    /** Counts releases played: a preload of an older one reports nothing. */
+    private var generation = 0
+
     init {
         slots.forEachIndexed { i, slot -> slot.events = SlotEvents(i) }
-        if (clip == null) {
+        if (kept != null) {
+            // Before anything plays: files of older releases go.
+            kept.removeUnused()
+            kept.kept()?.let(::first)
+            // Asks at once for a newer release, or the first one.
+            checkAt = wallClockMs()
+            scheduler.post(checkTask)
+        } else if (clip == null) {
             open(deliveryJson)
             appPaused = !(options.autoPlay ?: delivery.autoPlay)
         } else {
@@ -186,25 +227,32 @@ class MaskoPlayer internal constructor(
         }
     }
 
-    /** Starts the engine on [json]; a delivery it refuses plays nothing (rules.md 1.2). */
-    private fun open(json: String) {
-        var refusal: Pair<String, String?>? = null
-        try {
-            engine = makeEngine(json)
-        } catch (e: LoadFailure.Refused) {
-            // The engine's own reason, as on every platform: `unreadable` for text that is not JSON.
-            refusal = e.code to e.detail
-        } catch (e: Exception) {
-            // `engine_failed` is only for an engine that cannot run: here it threw instead of refusing.
-            refusal = "engine_failed" to e.message
-        } catch (e: LinkageError) {
-            // Or no engine library for this device's ABI.
-            refusal = "engine_failed" to e.message
+    /** An engine for [json], or why it cannot play. */
+    private fun engineFor(json: String): Pair<MaskoEngine?, Pair<String, String?>?> = try {
+        makeEngine(json) to null
+    } catch (e: LoadFailure.Refused) {
+        // The engine's own reason, as on every platform: `unreadable` for text that is not JSON.
+        null to (e.code to e.detail)
+    } catch (e: Exception) {
+        // `engine_failed` is only for an engine that cannot run: here it threw instead of refusing.
+        null to ("engine_failed" to e.message)
+    } catch (e: LinkageError) {
+        // Or no engine library for this device's ABI.
+        null to ("engine_failed" to e.message)
+    }
+
+    /**
+     * Starts the engine on [json]; a delivery it refuses plays nothing
+     * (rules.md 1.2) and goes to [refused], which by default frees everything.
+     */
+    private fun open(json: String, refused: (String, String?) -> Unit = ::fail): Boolean {
+        val (made, refusal) = engineFor(json)
+        if (made == null) {
+            val (code, detail) = refusal!!
+            refused(code, detail)
+            return false
         }
-        if (refusal != null) {
-            fail(refusal.first, refusal.second)
-            return
-        }
+        engine = made
         delivery = Delivery.parse(json) ?: delivery
         try {
             engine.seed(seed)
@@ -218,6 +266,7 @@ class MaskoPlayer internal constructor(
             },
         )
         scheduleRefresh()
+        return true
     }
 
     /** Plays nothing, and frees the decoders at once: the delivery or the clip cannot play. */
@@ -245,12 +294,16 @@ class MaskoPlayer internal constructor(
      * move plays its own clip (rules.md 5.8).
      */
     @JvmOverloads
-    fun set(name: String, value: Boolean, instant: Boolean = false) =
+    fun set(name: String, value: Boolean, instant: Boolean = false) {
+        remember(name, value)
         appCall("set") { engine.setBool(name, value, instant, it) }
+    }
 
     @JvmOverloads
-    fun set(name: String, value: Double, instant: Boolean = false) =
+    fun set(name: String, value: Double, instant: Boolean = false) {
+        remember(name, value)
         appCall("set") { engine.setNumber(name, value, instant, it) }
+    }
 
     @JvmOverloads
     fun set(name: String, value: Int, instant: Boolean = false) = set(name, value.toDouble(), instant)
@@ -260,11 +313,16 @@ class MaskoPlayer internal constructor(
     fun fire(name: String, instant: Boolean = false) = appCall("fire") { engine.fire(name, instant, it) }
 
     /** Values go back to their defaults and the mascot starts again (rules.md 11.3). */
-    fun reset() = appCall("reset") { engine.reset(it) }
+    fun reset() {
+        onMain("reset")
+        if (!destroyed) values.clear()
+        appCall("reset") { engine.reset(it) }
+    }
 
     /** Starts the mascot, or resumes it exactly where it stopped. */
     fun play() {
         onMain("play")
+        pauseChosen = true
         appPaused = false
         applyPause()
     }
@@ -272,6 +330,7 @@ class MaskoPlayer internal constructor(
     /** Stops play time, clips, timers and sounds. */
     fun pause() {
         onMain("pause")
+        pauseChosen = true
         appPaused = true
         applyPause()
     }
@@ -322,6 +381,8 @@ class MaskoPlayer internal constructor(
         scheduler.cancel(wakeTask)
         scheduler.cancel(refreshTask)
         scheduler.cancel(replyTimeout)
+        scheduler.cancel(checkTask)
+        background?.close()
         waiting.clear()
         commands.clear()
         stage.release()
@@ -342,7 +403,10 @@ class MaskoPlayer internal constructor(
         val back = active && hostPaused
         hostPaused = !active
         applyPause()
-        if (back) catchUpRefresh()
+        if (back) {
+            catchUpRefresh()
+            catchUpCheck()
+        }
     }
 
     /**
@@ -355,8 +419,11 @@ class MaskoPlayer internal constructor(
         this.attached = attached
         if (attached) {
             catchUpRefresh()
+            catchUpCheck()
         } else {
             scheduler.cancel(refreshTask)
+            // Only the time is kept: catchUpCheck asks when the view is back.
+            scheduler.cancel(checkTask)
             if (asking) {
                 // A reply that comes while detached is dropped; back in a window, the player asks again at once.
                 asking = false
@@ -423,6 +490,13 @@ class MaskoPlayer internal constructor(
                     handle(next)
                     continue
                 }
+                val restart = takeOver
+                if (restart != null) {
+                    // A newer release takes over here; the old loop goes on if it cannot.
+                    takeOver = null
+                    if (!switchRelease()) showClip(restart.first, EngineClipKind.POSE, restart.second)
+                    continue
+                }
                 val shown = toReport ?: break
                 toReport = null
                 if (shown === onScreen && shown === want) call { engine.clipShown(shown.edge, it) }
@@ -437,10 +511,16 @@ class MaskoPlayer internal constructor(
 
     private fun handle(c: EngineCommand) {
         when (c) {
-            is EngineCommand.ShowClip -> showClip(c.edge, c.kind, c.rate)
+            is EngineCommand.ShowClip ->
+                if (nextRelease != null && c.kind == EngineClipKind.POSE && restartsInitialLoop(c.edge)) {
+                    // A newer release takes over here, once these commands are done.
+                    takeOver = c.edge to c.rate
+                } else {
+                    showClip(c.edge, c.kind, c.rate)
+                }
             is EngineCommand.ShowStill -> showStill(c.pose)
             is EngineCommand.Preload -> preload(c.edge)
-            is EngineCommand.PlaySound -> delivery.edges[c.edge]?.sound?.let { sounds.play(it.url, it.volume, it.loop) }
+            is EngineCommand.PlaySound -> delivery.edges[c.edge]?.sound?.let { sounds.play(media(it.url), it.volume, it.loop) }
             is EngineCommand.StopSounds -> sounds.stop(c.onlyLooping)
             is EngineCommand.PoseEntered -> emit { it.onPose(c.pose) }
             // The next showClip replaces the move on screen at once; nothing else to do.
@@ -487,7 +567,7 @@ class MaskoPlayer internal constructor(
             stillToken++
             stage.cancelStill()
         }
-        val url = delivery.edges[edge]?.video(stage.sizePx())
+        val url = video(edge)
         if (url == null) {
             // No stacked file for this edge: it cannot play here (rules.md 9.4, 9.5).
             want = null
@@ -496,7 +576,7 @@ class MaskoPlayer internal constructor(
             return
         }
         val current = onScreen
-        if (kind == EngineClipKind.POSE && current != null && current.edge == edge) {
+        if (kind == EngineClipKind.POSE && current != null && current.edge == edge && current !== replaced) {
             // The next loop of the pose clip on screen: restart it in place.
             val next = Showing(current.slot, edge, kind, rate)
             want = next
@@ -545,6 +625,7 @@ class MaskoPlayer internal constructor(
         stillOnScreen = null
         front = next.slot
         onScreen = next
+        replaced = null
         held[next.slot].fresh = false
         if (!paused) slot.play(next.rate)
         val move = next.kind == EngineClipKind.MOVE
@@ -560,7 +641,7 @@ class MaskoPlayer internal constructor(
         want = null
         stillLoading = true
         val token = ++stillToken
-        stage.showStill(delivery.stills[pose]) {
+        stage.showStill(delivery.stills[pose]?.let(::media)) {
             if (token != stillToken || destroyed) return@showStill
             stillLoading = false
             onScreen?.let {
@@ -574,9 +655,16 @@ class MaskoPlayer internal constructor(
     }
 
     private fun preload(edge: String) {
-        val url = delivery.edges[edge]?.video(stage.sizePx()) ?: return
-        stage.preload(url) { ok -> if (!destroyed) playable(edge, ok) }
+        val url = video(edge) ?: return
+        val release = generation
+        stage.preload(url) { ok -> if (!destroyed && release == generation) playable(edge, ok) }
     }
+
+    /** The stacked file of [edge] for the mascot's size: its kept file for a canvas read from its URL, else its link. */
+    private fun video(edge: String): String? = delivery.edges[edge]?.video(stage.sizePx())?.let(::media)
+
+    /** A link's kept file when a canvas read from its URL has it, else the link. */
+    private fun media(url: String): String = kept?.local(url) ?: url
 
     /** A preload or a warm-up says whether [edge] can load (player.md: markUnplayable, markPlayable). */
     private fun playable(edge: String, ok: Boolean) {
@@ -601,7 +689,7 @@ class MaskoPlayer internal constructor(
             }
             ?: return
         if (edge == current?.edge || edge in unplayable) return
-        val url = delivery.edges[edge]?.video(stage.sizePx()) ?: return
+        val url = video(edge) ?: return
         val slot = if (front < 0) 0 else 1 - front
         val h = held[slot]
         if (h.edge == edge && h.file == fileKey(url) && h.fresh) return
@@ -658,10 +746,239 @@ class MaskoPlayer internal constructor(
         }
     }
 
+    // ------------------------------------------------------------------ a canvas from its URL
+
+    /** Remembers a value the app set, to carry it over to a newer release. */
+    private fun remember(name: String, value: Any) {
+        onMain("set")
+        if (kept != null && !destroyed) values[name] = value
+    }
+
+    /** Sets the values the app set on the engine, at play time [now]. */
+    private fun carried(now: ULong): List<EngineCommand> = values.flatMap { (name, value) ->
+        engineCall(emptyList()) {
+            when (value) {
+                is Boolean -> engine.setBool(name, value, false, now)
+                else -> engine.setNumber(name, value as Double, false, now)
+            }
+        }
+    }
+
+    /**
+     * Asks the canvas URL for its latest release: the first delivery to play,
+     * fresh links for the release playing, or a newer release, kept whole
+     * before it takes over. Then again in an hour; a first delivery that does
+     * not come is asked for again 30 seconds later, then twice as long each
+     * time, up to an hour.
+     */
+    private fun check() {
+        val kept = kept ?: return
+        val background = background ?: return
+        if (destroyed || checking) return
+        scheduler.cancel(checkTask)
+        checkAt = null
+        checking = true
+        background.run {
+            try {
+                val latest = kept.latest()
+                scheduler.post { received(latest) }
+            } catch (e: Exception) {
+                scheduler.post { checked(e) }
+            }
+        }
+    }
+
+    /** The canvas URL's latest release is in (main thread). */
+    private fun received(latest: KeptRelease.Release) {
+        if (destroyed) return
+        val fresh = Delivery.parse(latest.delivery)
+        when {
+            !::engine.isInitialized ->
+                // Nothing plays yet: this one plays now, from its links, while every file is kept.
+                if (first(latest)) keep(latest) else checked(null)
+            fresh != null && delivery.sameRelease(fresh) -> {
+                latest.id?.let { releaseId = it }
+                updateDelivery(latest.delivery)
+                // Completes the kept files when some are missing.
+                keep(latest)
+            }
+            else -> {
+                val refusal = engineFor(latest.delivery).let { (made, refusal) ->
+                    made?.let { engineCall(Unit) { it.destroy() } }
+                    refusal
+                }
+                if (refusal != null) {
+                    // The release playing goes on.
+                    emit { it.onError(refusal.first, refusal.second) }
+                    checked(null)
+                } else {
+                    keep(latest) {
+                        nextRelease = latest
+                        // Before the start, it simply plays from the start.
+                        if (!started) switchRelease()
+                    }
+                }
+            }
+        }
+    }
+
+    /** Keeps every file of [release] off the main thread, then calls [then] and plans the next check. */
+    private fun keep(release: KeptRelease.Release, then: (() -> Unit)? = null) {
+        val kept = kept ?: return
+        val background = background ?: return
+        background.run {
+            val failure = try {
+                kept.keep(release)
+                null
+            } catch (e: Exception) {
+                e
+            }
+            scheduler.post {
+                if (destroyed) return@post
+                if (failure == null) then?.invoke()
+                checked(failure)
+            }
+        }
+    }
+
+    /** A check is done: the next in an hour, or sooner while nothing plays and asking failed. */
+    private fun checked(failure: Exception?) {
+        checking = false
+        if (destroyed) return
+        if (failure == null) {
+            retry = RETRY_MS
+            checkIn(CHECK_EVERY_MS)
+            return
+        }
+        emit { it.onError("refresh_failed", failure.message ?: failure.toString()) }
+        if (::engine.isInitialized) {
+            checkIn(CHECK_EVERY_MS)
+        } else {
+            checkIn(retry)
+            retry = minOf(retry * 2, CHECK_EVERY_MS)
+        }
+    }
+
+    private fun checkIn(delayMs: Long) {
+        scheduler.cancel(checkTask)
+        checkAt = wallClockMs() + delayMs
+        if (attached) scheduler.postDelayed(checkTask, delayMs)
+    }
+
+    /** The check timer counts uptime, which stops in deep sleep: when the view is back, a check already due starts at once. */
+    private fun catchUpCheck() {
+        val at = checkAt ?: return
+        if (destroyed || checking) return
+        checkIn((at - wallClockMs()).coerceAtLeast(0))
+    }
+
+    /** The first release of a canvas read from its URL; the values the app set meanwhile choose the first pose (rules.md 11.1). */
+    private fun first(release: KeptRelease.Release): Boolean {
+        val opened = open(release.delivery) { code, detail ->
+            scheduler.post { if (!destroyed) emit { it.onError(code, detail) } }
+        }
+        if (!opened) return false
+        releaseId = release.id
+        if (!pauseChosen) appPaused = !delivery.autoPlay
+        commands.addAll(carried(0u))
+        run()
+        return true
+    }
+
+    /**
+     * Whether this pose clip is the one on screen starting again on the
+     * initial pose: the moment a newer release can take over unseen, since
+     * its own start shows that pose too.
+     */
+    private fun restartsInitialLoop(edge: String): Boolean {
+        val shown = onScreen ?: return false
+        if (shown.edge != edge || shown.kind != EngineClipKind.POSE || shown === replaced) return false
+        val pose = delivery.initialNode ?: return false
+        val e = delivery.edges[edge] ?: return false
+        return e.source == pose && e.target == pose
+    }
+
+    /**
+     * Plays the waiting release from now on. Before the start, it simply
+     * starts with it. After, it starts at play time 0 where the initial pose's
+     * loop would have started again: the picture on screen stays until its
+     * first clip has decoded, and the values the app set are set again. A
+     * release the engine refuses is reported and the one playing goes on (false).
+     */
+    private fun switchRelease(): Boolean {
+        val next = nextRelease ?: return false
+        nextRelease = null
+        if (destroyed) return false
+        val (made, refusal) = engineFor(next.delivery)
+        if (made == null) {
+            refusal?.let { (code, detail) -> emit { it.onError(code, detail) } }
+            return false
+        }
+        val old = engine
+        engineCall(Unit) { old.destroy() }
+        engine = made
+        delivery = Delivery.parse(next.delivery) ?: delivery
+        releaseId = next.id
+        generation++
+        unplayable.clear()
+        engineCall(Unit) { engine.seed(seed) }
+        if (!started) {
+            if (!pauseChosen) appPaused = !delivery.autoPlay
+            commands.addAll(carried(0u))
+            run()
+            scheduleRefresh()
+            return true
+        }
+        sounds.stop(onlyLooping = true)
+        if (stillLoading) {
+            stillLoading = false
+            stillToken++
+            stage.cancelStill()
+        }
+        // The old clip stays on screen; the slot behind it is free for the new release.
+        replaced = onScreen
+        want = null
+        toReport = null
+        held.forEachIndexed { i, h ->
+            if (i != onScreen?.slot) {
+                h.edge = null
+                h.file = null
+                h.ready = false
+                h.fresh = false
+            }
+        }
+        clock = PlayClock(elapsedMs).also { if (!paused) it.resume() }
+        val now = clock.now().toULong()
+        commands.addAll(engineCall(emptyList()) { engine.start(now) })
+        commands.addAll(carried(now))
+        scheduleRefresh()
+        return true
+    }
+
     // ------------------------------------------------------------------ signed links
 
+    /** The app's getDelivery, or for a canvas read from its URL, the release's own URL. */
+    private val source: DeliverySource?
+        get() = options.getDelivery ?: if (kept != null) DeliverySource(::renew) else null
+
+    /** Asks the release playing again for fresh links (`.../releases/{releaseId}/delivery`). */
+    private fun renew(reply: (String?) -> Unit) {
+        val kept = kept
+        val background = background
+        val id = releaseId
+        if (kept == null || background == null) return reply(null)
+        background.run {
+            val json = try {
+                (if (id != null) kept.release(id) else kept.latest()).delivery
+            } catch (_: Exception) {
+                null
+            }
+            reply(json)
+        }
+    }
+
     private fun scheduleRefresh() {
-        if (destroyed || options.getDelivery == null) return
+        if (destroyed || source == null) return
         val expires = delivery.expiresAt
         if (expires == null) {
             scheduler.cancel(refreshTask)
@@ -692,7 +1009,7 @@ class MaskoPlayer internal constructor(
     }
 
     private fun refresh() {
-        val source = options.getDelivery ?: return
+        val source = source ?: return
         if (destroyed || asking) return
         refreshAt = null
         asking = true
@@ -763,6 +1080,8 @@ class MaskoPlayer internal constructor(
         private const val RETRY_MS = 30_000L
         /** A getDelivery that has not replied after this long has failed. */
         private const val REPLY_TIMEOUT_MS = 60_000L
+        /** How often a canvas read from its URL asks for a newer release. */
+        private const val CHECK_EVERY_MS = 60 * 60_000L
     }
 }
 

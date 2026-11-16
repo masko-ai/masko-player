@@ -6,8 +6,8 @@ import MaskoPlayer
 #endif
 
 /// Shows one `MaskoPlayer` in a `MaskoPlayerView` for a Flutter `MaskoView`.
-/// A new delivery or clip, or `getDelivery` given or taken away, loads a new
-/// player; the view going away destroys it. Calls come on the view's own
+/// A new canvas URL or app key, delivery or clip, or `getDelivery` given or
+/// taken away, loads a new player; the view going away destroys it. Calls come on the view's own
 /// channel, on the main thread, in the order Dart made them; events go back
 /// on it. A `getDelivery` call waits for Dart without holding the view, and
 /// fails when the view goes away, so a view Flutter dropped is freed even
@@ -18,6 +18,11 @@ final class MaskoFlutterView: NSObject, FlutterPlatformView {
     private let mascot = MaskoPlayerView()
 
     private var player: MaskoPlayer?
+    /// A canvas's URL, played in place of `delivery`: the player asks it for
+    /// the latest release and keeps the files.
+    private var url: String?
+    /// The app key that reads `url`, unless the URL carries it as `?key=`.
+    private var appKey: String?
     private var delivery: String?
     /// A lone clip's HEVC file, played in place of `delivery`.
     private var clip: String?
@@ -25,7 +30,8 @@ final class MaskoFlutterView: NSObject, FlutterPlatformView {
     private var sound = true
     private var refreshes = false
 
-    /// What the player was loaded with: the delivery's JSON, or `clip:` and the file.
+    /// What the player was loaded with: the delivery's JSON, `clip:` and the
+    /// file, or `url:` with the URL and the key.
     private var loaded: (source: String, refreshes: Bool)?
     /// `getDelivery` calls waiting for Dart's answer.
     private var requests: [Int: CheckedContinuation<Data, Error>] = [:]
@@ -99,12 +105,17 @@ final class MaskoFlutterView: NSObject, FlutterPlatformView {
 
     /// The widget's props: loads what they name when it changed.
     private func apply(_ props: [String: Any]) {
+        url = props["url"] as? String
+        appKey = props["appKey"] as? String
         delivery = props["delivery"] as? String
         clip = props["clip"] as? String
         autoPlay = props["autoPlay"] as? Bool
         sound = props["sound"] as? Bool ?? true
         refreshes = props["refreshes"] as? Bool ?? false
-        if let clip, let url = clip.hasPrefix("/") ? URL(fileURLWithPath: clip) : URL(string: clip) {
+        if let url, !url.isEmpty {
+            let source = "url:" + url + " " + (appKey ?? "")
+            if loaded?.source != source { loadCanvas(url, source: source) }
+        } else if let clip, let url = clip.hasPrefix("/") ? URL(fileURLWithPath: clip) : URL(string: clip) {
             if loaded?.source != "clip:" + clip { loadClip(url, source: "clip:" + clip) }
         } else if let delivery, !delivery.isEmpty {
             if loaded?.source != delivery || loaded?.refreshes != refreshes { load(delivery) }
@@ -130,6 +141,18 @@ final class MaskoFlutterView: NSObject, FlutterPlatformView {
         }
         show(MaskoPlayer(delivery: Data(json.utf8), autoPlay: autoPlay, getDelivery: getDelivery))
         loaded = (json, refreshes)
+    }
+
+    /// Plays a canvas from its URL; the player asks for its links itself, so
+    /// `getDelivery` is not used.
+    private func loadCanvas(_ link: String, source: String) {
+        unload()
+        guard let url = URL(string: link) else {
+            channel.invokeMethod("error", arguments: ["code": "refresh_failed", "detail": "not a URL: \(link)"])
+            return
+        }
+        show(MaskoPlayer(url: url, appKey: appKey?.isEmpty == false ? appKey : nil, autoPlay: autoPlay))
+        loaded = (source, refreshes)
     }
 
     private func loadClip(_ url: URL, source: String) {

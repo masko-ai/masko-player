@@ -12,8 +12,8 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 
 /**
- * Shows a Masko mascot. Load a release delivery with [load], or one
- * animation's file with [loadClip]. The view does not watch the person: the
+ * Shows a Masko mascot. Load a release delivery with [load], a canvas from
+ * its URL with [loadCanvas], or one animation's file with [loadClip]. The view does not watch the person: the
  * app sets `behavior::pointerHover` and fires `action::click` itself, with its
  * own listeners on this view or another (rules.md 3.5).
  *
@@ -82,13 +82,43 @@ class MaskoPlayerView @JvmOverloads constructor(
     fun loadClip(stacked: String, options: MaskoPlayer.Options = MaskoPlayer.Options()): MaskoPlayer =
         start("loadClip", "", stacked, options)
 
-    private fun start(method: String, delivery: String, clip: String?, options: MaskoPlayer.Options): MaskoPlayer {
+    /**
+     * Plays a canvas's latest release from its URL,
+     * `https://api.masko.ai/v1/canvases/{canvasId}/delivery`, read with an app
+     * key of its mascot (`masko_app_...`), with no backend (spec/player.md,
+     * "A canvas from its URL"). The key may instead sit inside the URL
+     * (`...delivery?key=masko_app_...`); then leave [appKey] out.
+     *
+     * Every file is downloaded once and kept in the app's files
+     * (`noBackupFilesDir/MaskoPlayer`), so the release kept last plays at
+     * once at the next launch, also offline. The player asks the URL again at
+     * once and every hour: the same release only renews its links, a newer
+     * one is kept whole, then takes over when the initial pose's loop starts
+     * again, with the values the app set. Before the first delivery is in,
+     * values set choose the first pose and fires are dropped; a failure to
+     * ask or to download is an `error` `refresh_failed`. Links are renewed
+     * from the release's own URL before they expire, unless
+     * [MaskoPlayer.Options.getDelivery] is given. A player loaded before is
+     * destroyed. Main thread only.
+     */
+    @JvmOverloads
+    fun loadCanvas(url: String, appKey: String? = null, options: MaskoPlayer.Options = MaskoPlayer.Options()): MaskoPlayer =
+        start("loadCanvas", "", null, options, url to appKey)
+
+    private fun start(
+        method: String,
+        delivery: String,
+        clip: String?,
+        options: MaskoPlayer.Options,
+        canvas: Pair<String, String?>? = null,
+    ): MaskoPlayer {
         check(Looper.myLooper() == Looper.getMainLooper()) {
             "MaskoPlayerView.$method must be called on the main thread, not on thread \"${Thread.currentThread().name}\""
         }
         player?.destroy()
         val media = MediaFiles.get(context)
         val stage = ViewStage(this, media).also { this.stage = it }
+        val kept = canvas?.let { (url, key) -> KeptRelease(url, key, KeptRelease.root(context), MaskoPlayer.formats) }
         val next = MaskoPlayer(
             delivery,
             stage,
@@ -98,6 +128,8 @@ class MaskoPlayerView @JvmOverloads constructor(
             System::currentTimeMillis,
             options,
             clip = clip,
+            kept = kept,
+            background = kept?.let { Background.thread() },
         )
         player = next
         next.setHostAttached(isAttachedToWindow)

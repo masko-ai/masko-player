@@ -73,17 +73,37 @@ export interface ClipFiles {
 }
 
 /**
- * What the view plays: a release `delivery`, or one animation's `clip` files,
- * looped on its own.
+ * A canvas played from its URL, with no backend: the player reads the
+ * canvas's latest release itself, keeps every file, and moves to a newer
+ * release on its own.
+ */
+export interface CanvasUrl {
+  /**
+   * `https://api.masko.ai/v1/canvases/{canvasId}/delivery`, with the app key
+   * inside it (`?key=masko_app_...`) or given apart in `appKey`.
+   */
+  url: string;
+  /** An app key of the canvas's mascot (`masko_app_...`), when the URL does not carry one. */
+  appKey?: string;
+}
+
+/**
+ * What the view plays: a canvas from its `url`, a release `delivery`, or one
+ * animation's `clip` files, looped on its own. Give one of them.
  */
 export type MaskoViewProps = ViewProps &
   MaskoViewOptions &
-  ({ delivery: DeliveryInput; clip?: undefined } | { clip: ClipFiles; delivery?: undefined });
+  (
+    | (CanvasUrl & { delivery?: undefined; clip?: undefined })
+    | { delivery: DeliveryInput; clip?: undefined; url?: undefined; appKey?: undefined }
+    | { clip: ClipFiles; delivery?: undefined; url?: undefined; appKey?: undefined }
+  );
 
 export interface MaskoViewOptions {
   /**
    * Returns a fresh delivery of the same release, before signed links expire.
    * Giving or taking it away loads the release again, which restarts the mascot.
+   * Not needed with `url`, which fetches its own deliveries; it is ignored there.
    */
   getDelivery?: () => DeliveryInput | Promise<DeliveryInput>;
   /** Lets clips with their own voice be heard. On by default; false mutes them. Edge sounds play either way. */

@@ -20,6 +20,8 @@ class MaskoPlayerModule : Module() {
 
       Prop("delivery") { view: MaskoNativeView, json: String? -> view.delivery = json }
       Prop("clip") { view: MaskoNativeView, url: String? -> view.clip = url }
+      Prop("url") { view: MaskoNativeView, url: String? -> view.url = url }
+      Prop("appKey") { view: MaskoNativeView, key: String? -> view.appKey = key }
       Prop("autoPlay") { view: MaskoNativeView, on: Boolean? -> view.autoPlay = on }
       Prop("sound") { view: MaskoNativeView, on: Boolean? -> view.sound = on ?: true }
       Prop("refreshes") { view: MaskoNativeView, on: Boolean? -> view.refreshes = on ?: false }

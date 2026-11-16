@@ -183,6 +183,13 @@ offline play: the browser caches the files, a new page load asks again, and
 a newer release's mascot shows over the one on screen until its first clip
 is there (web/README.md, "A canvas from its URL").
 
+On Android the player also renews the links of the release playing before
+they expire, from the release's own URL
+(`/v1/canvases/{canvasId}/releases/{releaseId}/delivery`, same query), and
+its start is when the view can first draw, so a newer release that comes
+before that simply plays from the start (android/README.md, "A canvas from
+its URL").
+
 ## What the app sees
 
 The same names on every platform:

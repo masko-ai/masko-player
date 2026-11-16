@@ -13,8 +13,8 @@ import org.json.JSONObject
 
 /**
  * Shows one [MaskoPlayer] in a [MaskoPlayerView] for a Flutter `MaskoView`. A
- * new delivery or clip, or `getDelivery` given or taken away, loads a new
- * player; the view going away destroys it. Calls come on the view's own
+ * new canvas URL or app key, delivery or clip, or `getDelivery` given or taken
+ * away, loads a new player; the view going away destroys it. Calls come on the view's own
  * channel, on the main thread, in the order Dart made them; events go back on
  * it.
  *
@@ -30,6 +30,13 @@ internal class MaskoFlutterView(
   private val mascot = MaskoPlayerView(context)
 
   private var player: MaskoPlayer? = null
+  /**
+   * A canvas's URL, played in place of [delivery]: the player asks it for the
+   * latest release and keeps the files.
+   */
+  private var url: String? = null
+  /** The app key that reads [url], unless the URL carries it as `?key=`. */
+  private var appKey: String? = null
   private var delivery: String? = null
   /** A lone clip's stacked file, played in place of [delivery]. */
   private var clip: String? = null
@@ -37,7 +44,7 @@ internal class MaskoFlutterView(
   private var sound = true
   private var refreshes = false
 
-  /** What the player was loaded with: the delivery's JSON, or `clip:` and the file. */
+  /** What the player was loaded with: the delivery's JSON, `clip:` and the file, or `url:` with the URL and the key. */
   private var loaded: Pair<String, Boolean>? = null
 
   /** `getDelivery` calls waiting for Dart's answer. */
@@ -112,13 +119,19 @@ internal class MaskoFlutterView(
 
   /** The widget's props: loads what they name when it changed. */
   private fun apply(props: Map<String, Any?>) {
+    url = props["url"] as? String
+    appKey = props["appKey"] as? String
     delivery = props["delivery"] as? String
     clip = props["clip"] as? String
     autoPlay = props["autoPlay"] as? Boolean
     sound = props["sound"] as? Boolean ?: true
     refreshes = props["refreshes"] as? Boolean ?: false
+    val link = url?.takeIf { it.isNotEmpty() }
     val file = clip?.takeIf { it.isNotEmpty() }
-    if (file != null) {
+    if (link != null) {
+      val source = "url:$link ${appKey ?: ""}"
+      if (loaded != source to refreshes) loadCanvas(link, source)
+    } else if (file != null) {
       if (loaded != "clip:$file" to refreshes) loadClip(file)
     } else {
       val json = delivery?.takeIf { it.isNotEmpty() } ?: return unload()
@@ -134,6 +147,16 @@ internal class MaskoFlutterView(
     next.addListener(listener)
     player = next
     loaded = json to refreshes
+  }
+
+  /** Plays a canvas from its URL; the player asks for its links itself, so `getDelivery` is not used. */
+  private fun loadCanvas(link: String, source: String) {
+    unload()
+    val key = appKey?.takeIf { it.isNotEmpty() }
+    val next = mascot.loadCanvas(link, key, MaskoPlayer.Options(autoPlay = autoPlay, sound = sound))
+    next.addListener(listener)
+    player = next
+    loaded = source to refreshes
   }
 
   private fun loadClip(file: String) {

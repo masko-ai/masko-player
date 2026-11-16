@@ -101,6 +101,8 @@ void main() {
     )));
     final params = native.created.single;
     expect(params['delivery'], jsonEncode(delivery()));
+    expect(params['url'], isNull);
+    expect(params['appKey'], isNull);
     expect(params['clip'], isNull);
     expect(params['autoPlay'], false);
     expect(params['sound'], false);
@@ -225,6 +227,66 @@ void main() {
     final count = native.calls.length;
     await tester.pumpWidget(sized(MaskoView(delivery: delivery(release: 'r2'), sound: false, getDelivery: () async => null)));
     expect(native.calls.length, count, reason: 'nothing changed');
+  }, variant: ios);
+
+  testWidgets('a canvas URL with its key inside reaches the native view, with the calls made before it', (tester) async {
+    final native = FakeNative(tester);
+    final controller = MaskoController()..set('working', true);
+    const link = 'https://api.masko.ai/v1/canvases/c1/delivery?key=masko_app_test';
+    await tester.pumpWidget(sized(MaskoView(url: link, controller: controller, autoPlay: false)));
+    final params = native.created.single;
+    expect(params['url'], link);
+    expect(params['appKey'], isNull);
+    expect(params['delivery'], '');
+    expect(params['clip'], isNull);
+    expect(params['autoPlay'], false);
+    expect(params['sound'], true);
+    expect(params['refreshes'], false);
+    expect(params['calls'], [
+      {
+        'method': 'setBool',
+        'arguments': {'name': 'working', 'value': true, 'instant': false},
+      },
+    ]);
+
+    controller.fire('celebrate');
+    await tester.pump();
+    expect(native.names, ['fire']);
+  }, variant: ios);
+
+  testWidgets('a canvas URL with its app key apart reaches the native view on Android', (tester) async {
+    final native = FakeNative(tester);
+    const link = 'https://api.masko.ai/v1/canvases/c1/delivery';
+    await tester.pumpWidget(sized(MaskoView(url: link, appKey: 'masko_app_test', getDelivery: () async => delivery())));
+    final params = native.created.single;
+    expect(params['url'], link);
+    expect(params['appKey'], 'masko_app_test');
+    expect(params['delivery'], '');
+    expect(params['refreshes'], false, reason: 'a URL renews its own links');
+  }, variant: android);
+
+  testWidgets('a new URL or app key updates the view; the same one changes nothing', (tester) async {
+    final native = FakeNative(tester);
+    const link = 'https://api.masko.ai/v1/canvases/c1/delivery';
+    await tester.pumpWidget(sized(const MaskoView(url: link, appKey: 'masko_app_a')));
+
+    await tester.pumpWidget(sized(const MaskoView(url: link, appKey: 'masko_app_a')));
+    expect(native.calls, isEmpty);
+
+    await tester.pumpWidget(sized(const MaskoView(url: link, appKey: 'masko_app_b')));
+    expect(native.names, ['update']);
+    expect((native.calls.last.arguments as Map)['appKey'], 'masko_app_b');
+
+    await tester.pumpWidget(sized(const MaskoView(url: '$link?key=masko_app_c')));
+    expect(native.names, ['update', 'update']);
+    expect((native.calls.last.arguments as Map)['url'], '$link?key=masko_app_c');
+    expect((native.calls.last.arguments as Map)['appKey'], isNull);
+
+    // From a URL to a delivery: the view gets the delivery and no URL.
+    await tester.pumpWidget(sized(MaskoView(delivery: delivery())));
+    expect(native.names, ['update', 'update', 'update']);
+    expect((native.calls.last.arguments as Map)['url'], isNull);
+    expect((native.calls.last.arguments as Map)['delivery'], jsonEncode(delivery()));
   }, variant: ios);
 
   testWidgets('a clip plays the HEVC file on iOS', (tester) async {

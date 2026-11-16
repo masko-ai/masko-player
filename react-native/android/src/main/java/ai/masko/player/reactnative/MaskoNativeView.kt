@@ -10,8 +10,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Shows one [MaskoPlayer] in a [MaskoPlayerView]. A new delivery or clip, or
- * `getDelivery` given or taken away, loads a new player; the view going away
+ * Shows one [MaskoPlayer] in a [MaskoPlayerView]. A new delivery, canvas URL,
+ * app key or clip, or `getDelivery` given or taken away, loads a new player; the view going away
  * destroys it.
  */
 class MaskoNativeView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
@@ -28,6 +28,10 @@ class MaskoNativeView(context: Context, appContext: AppContext) : ExpoView(conte
   var delivery: String? = null
   /** A lone clip's stacked file, played in place of [delivery]. */
   var clip: String? = null
+  /** A canvas's delivery URL, played in place of [delivery]: the player fetches the latest release itself. */
+  var url: String? = null
+  /** The app key for [url], when the URL does not carry one. */
+  var appKey: String? = null
   var autoPlay: Boolean? = null
   var sound = true
   var refreshes = false
@@ -37,7 +41,7 @@ class MaskoNativeView(context: Context, appContext: AppContext) : ExpoView(conte
 
   private val mascot = MaskoPlayerView(context)
 
-  /** What the player was loaded with: the delivery's JSON, or `clip:` and the file. */
+  /** What the player was loaded with: the delivery's JSON, `clip:` and the file, or `url:` with the URL and the app key. */
   private var loaded: Pair<String, Boolean>? = null
 
   /** `getDelivery` calls waiting for JavaScript's answer. */
@@ -73,8 +77,13 @@ class MaskoNativeView(context: Context, appContext: AppContext) : ExpoView(conte
 
   fun propsChanged() {
     val file = clip?.takeIf { it.isNotEmpty() }
+    val canvas = url?.takeIf { it.isNotEmpty() }
     if (file != null) {
       if (loaded != "clip:$file" to refreshes) loadClip(file)
+    } else if (canvas != null) {
+      val key = appKey?.takeIf { it.isNotEmpty() }
+      val source = "url:$canvas\n${key ?: ""}"
+      if (loaded?.first != source) loadCanvas(canvas, key, source)
     } else {
       val json = delivery?.takeIf { it.isNotEmpty() } ?: return unload()
       if (loaded != json to refreshes) load(json)
@@ -118,6 +127,15 @@ class MaskoNativeView(context: Context, appContext: AppContext) : ExpoView(conte
     next.addListener(listener)
     player = next
     loaded = "clip:$file" to refreshes
+  }
+
+  /** A canvas from its URL: the player fetches its deliveries, so `getDelivery` plays no part. */
+  private fun loadCanvas(canvas: String, key: String?, source: String) {
+    unload()
+    val next = mascot.loadCanvas(canvas, key, MaskoPlayer.Options(autoPlay = autoPlay, sound = sound))
+    next.addListener(listener)
+    player = next
+    loaded = source to refreshes
   }
 
   /** Asks JavaScript's `getDelivery` (the player asks on the main thread); [answerDelivery] replies. */

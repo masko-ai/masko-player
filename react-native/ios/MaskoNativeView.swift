@@ -1,8 +1,8 @@
 import ExpoModulesCore
 import UIKit
 
-/// Shows one `MaskoPlayer` in a `MaskoPlayerView`. A new delivery or clip,
-/// or `getDelivery` given or taken away, loads a new player; the view going away
+/// Shows one `MaskoPlayer` in a `MaskoPlayerView`. A new delivery, canvas URL,
+/// app key or clip, or `getDelivery` given or taken away, loads a new player; the view going away
 /// destroys it. A `getDelivery` call waits for JavaScript without holding the
 /// view, and fails when the view leaves its window, so an unmounted view is
 /// freed even when JavaScript never answers.
@@ -17,13 +17,19 @@ final class MaskoNativeView: ExpoView {
   var delivery: String?
   /// A lone clip's HEVC file, played in place of `delivery`.
   var clip: String?
+  /// A canvas's delivery URL, played in place of `delivery`: the player
+  /// fetches the latest release itself.
+  var url: String?
+  /// The app key for `url`, when the URL does not carry one.
+  var appKey: String?
   var autoPlay: Bool?
   var sound = true
   var refreshes = false
 
   private(set) var player: MaskoPlayer?
   private let mascot = MaskoPlayerView()
-  /// What the player was loaded with: the delivery's JSON, or `clip:` and the file.
+  /// What the player was loaded with: the delivery's JSON, `clip:` and the
+  /// file, or `url:` with the URL and the app key.
   private var loaded: (source: String, refreshes: Bool)?
   /// `getDelivery` calls waiting for JavaScript's answer.
   private var requests: [Int: CheckedContinuation<Data, Error>] = [:]
@@ -62,6 +68,11 @@ final class MaskoNativeView: ExpoView {
   func propsChanged() {
     if let clip, let url = URL(string: clip) {
       if loaded?.source != "clip:" + clip { loadClip(url) }
+    } else if let url, !url.isEmpty {
+      guard let canvas = URL(string: url) else { return unload() }
+      let key = appKey.flatMap { $0.isEmpty ? nil : $0 }
+      let source = "url:" + url + "\n" + (key ?? "")
+      if loaded?.source != source { loadCanvas(canvas, appKey: key, source: source) }
     } else {
       guard let delivery, !delivery.isEmpty else { return unload() }
       if loaded?.source != delivery || loaded?.refreshes != refreshes {
@@ -111,6 +122,14 @@ final class MaskoNativeView: ExpoView {
     unload()
     show(MaskoPlayer(clip: url, autoPlay: autoPlay))
     loaded = ("clip:" + url.absoluteString, refreshes)
+  }
+
+  /// A canvas from its URL: the player fetches its deliveries, so
+  /// `getDelivery` plays no part.
+  private func loadCanvas(_ url: URL, appKey: String?, source: String) {
+    unload()
+    show(MaskoPlayer(url: url, appKey: appKey, autoPlay: autoPlay))
+    loaded = (source, refreshes)
   }
 
   private func show(_ player: MaskoPlayer) {

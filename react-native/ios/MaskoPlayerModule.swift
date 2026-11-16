@@ -19,6 +19,12 @@ public final class MaskoPlayerModule: Module {
       Prop("clip") { (view: MaskoNativeView, url: String?) in
         MainActor.assumeIsolated { view.clip = url }
       }
+      Prop("url") { (view: MaskoNativeView, url: String?) in
+        MainActor.assumeIsolated { view.url = url }
+      }
+      Prop("appKey") { (view: MaskoNativeView, key: String?) in
+        MainActor.assumeIsolated { view.appKey = key }
+      }
       Prop("autoPlay") { (view: MaskoNativeView, on: Bool?) in
         MainActor.assumeIsolated { view.autoPlay = on }
       }

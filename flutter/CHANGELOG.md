@@ -1,3 +1,13 @@
+## 0.1.19
+
+- `MaskoView(url: ...)` plays a canvas from its URL, with no backend: the
+  native player asks for the latest release, keeps every file for offline
+  play, checks again at launch and every hour, and switches to a newer
+  release when the mascot is back on its first pose. The app key may sit
+  inside the URL (`...delivery?key=masko_app_...`) or go in `appKey:`.
+  On Android this is new in the Kotlin player (`loadCanvas`); on iPhone and
+  iPad it uses the Swift player's URL mode.
+
 ## 0.1.18
 
 - No change to the Flutter API or to how mascots play. On the web and on

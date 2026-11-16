@@ -96,11 +96,14 @@ class MaskoPreview {
   void playMove(String id) => _controller._call('playMove', {'id': id});
 }
 
-/// A Masko mascot: a release [delivery], or one animation's [clip] files
-/// looped on its own. It fills its parent; size it with a `SizedBox`.
+/// A Masko mascot: a canvas from its [url], a release [delivery], or one
+/// animation's [clip] files looped on its own. Give exactly one of them. It
+/// fills its parent; size it with a `SizedBox`.
 class MaskoView extends StatefulWidget {
   const MaskoView({
     super.key,
+    this.url,
+    this.appKey,
     this.delivery,
     this.clip,
     this.controller,
@@ -112,10 +115,24 @@ class MaskoView extends StatefulWidget {
     this.onReactionDone,
     this.onMovement,
     this.onError,
-  }) : assert(
-          (delivery == null) != (clip == null),
-          'MaskoView plays a delivery or a clip: give one of them.',
-        );
+  })  : assert(
+          (url == null ? 0 : 1) + (delivery == null ? 0 : 1) + (clip == null ? 0 : 1) == 1,
+          'MaskoView plays a url, a delivery or a clip: give one of them.',
+        ),
+        assert(appKey == null || url != null, 'appKey goes with url.');
+
+  /// A canvas's URL, `https://api.masko.ai/v1/canvases/{canvasId}/delivery`,
+  /// for an app with no backend: the native player asks it for the canvas's
+  /// latest release, keeps every file on the device so the mascot also plays
+  /// offline, and switches to a newer release on its own. Read with an app
+  /// key of the mascot (`masko_app_...`), in [appKey] or inside the URL
+  /// (`...delivery?key=masko_app_...`). In place of [delivery];
+  /// [getDelivery] is not used. A new URL or key loads a new player.
+  final String? url;
+
+  /// The app key that reads [url], when the URL does not carry it as
+  /// `?key=`. It can only read its mascot's released canvases.
+  final String? appKey;
 
   /// A release delivery: the delivery `Map`, its JSON `String`, or the API
   /// response around it (`{data: {delivery}}` from
@@ -133,7 +150,7 @@ class MaskoView extends StatefulWidget {
 
   /// Returns a fresh delivery of the same release, before signed links
   /// expire. Giving or taking it away loads the release again, which
-  /// restarts the mascot.
+  /// restarts the mascot. Only for [delivery]: a [url] renews its own links.
   final Future<Object?> Function()? getDelivery;
 
   /// Lets clips with their own voice be heard. On by default; false mutes
@@ -178,8 +195,8 @@ class _MaskoViewState extends State<MaskoView> {
 
   late Map<String, Object?> _creationParams;
 
-  /// What the player plays: the release (links left out), or `clip:` and
-  /// the file.
+  /// What the player plays: the release (links left out), `clip:` and the
+  /// file, or `url:` with the URL and the key.
   late String _key;
   late bool _refreshes;
 
@@ -205,9 +222,22 @@ class _MaskoViewState extends State<MaskoView> {
 
   String get _freshJson => widget.delivery == null ? '' : deliveryJson(widget.delivery!);
 
+  /// What the widget names, as [_key] tells it.
+  String _sourceKey(String? clip) {
+    final url = widget.url;
+    if (url != null) return 'url:$url ${widget.appKey ?? ''}';
+    if (clip != null) return 'clip:$clip';
+    return releaseKey(widget.delivery!);
+  }
+
+  /// A [MaskoView.url] renews its own links, so getDelivery is left out.
+  bool get _wantsRefresh => widget.url == null && widget.getDelivery != null;
+
   Map<String, Object?> _currentProps() {
     final clip = _clipFile;
     return {
+      'url': widget.url,
+      'appKey': widget.url == null ? null : widget.appKey,
       'delivery': _json,
       'clip': clip == null || clip.isEmpty ? null : clip,
       'autoPlay': widget.autoPlay,
@@ -221,8 +251,8 @@ class _MaskoViewState extends State<MaskoView> {
     super.initState();
     _channel.setMethodCallHandler(_handle);
     final clip = _clipFile;
-    _key = clip != null ? 'clip:$clip' : releaseKey(widget.delivery!);
-    _refreshes = widget.getDelivery != null;
+    _key = _sourceKey(clip);
+    _refreshes = _wantsRefresh;
     _json = _freshJson;
     _given = (key: _key, json: _json);
     _props = _currentProps();
@@ -260,12 +290,12 @@ class _MaskoViewState extends State<MaskoView> {
       }
     }
 
-    // A new release loads a new player; new links for the same release keep
-    // it. getDelivery given or taken away loads the release again (the
-    // mascot restarts), with the latest links.
+    // A new release, URL or key loads a new player; new links for the same
+    // release keep it. getDelivery given or taken away loads the release
+    // again (the mascot restarts), with the latest links.
     final clip = _clipFile;
-    final key = clip != null ? 'clip:$clip' : releaseKey(widget.delivery!);
-    final refreshes = widget.getDelivery != null;
+    final key = _sourceKey(clip);
+    final refreshes = _wantsRefresh;
     final fresh = _freshJson;
     if (key != _key || refreshes != _refreshes) {
       _key = key;

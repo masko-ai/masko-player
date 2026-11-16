@@ -1,5 +1,6 @@
 export { MaskoView, maskoFormats } from './MaskoView';
 export type {
+  CanvasUrl,
   ClipFiles,
   Delivery,
   DeliveryInput,

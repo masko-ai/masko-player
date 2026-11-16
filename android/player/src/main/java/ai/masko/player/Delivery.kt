@@ -18,6 +18,8 @@ internal class Delivery(
     val expiresAt: Long?,
     /** The release with its links left out: `release.id` and the graph. */
     private val shape: String?,
+    /** The graph's `initialNode`. */
+    val initialNode: String? = null,
 ) {
     /** The pose's main clip: its first pose clip without conditions (rules.md 7.1). */
     fun mainClip(pose: String): String? =
@@ -84,6 +86,7 @@ internal class Delivery(
                 stills = stills,
                 expiresAt = access?.optText("signedUrlExpiresAt")?.let(::parseIsoTime),
                 shape = "[" + withoutLinks(root.optJSONObject("release")?.opt("id")) + "," + withoutLinks(graph) + "]",
+                initialNode = graph.optText("initialNode"),
             )
         }
 

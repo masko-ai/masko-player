@@ -101,6 +101,31 @@ whose length cannot be read, reports `clip_failed`.
   files shows each pose's still until the canvas is released again
   (`../android/README.md`).
 
+## A canvas from its URL
+
+An app with no backend plays a canvas from one link: the native player
+reads the canvas's latest release, keeps every file so the mascot also
+plays offline, and moves to a newer release on its own. No `delivery` or
+`getDelivery` is needed.
+
+```tsx
+<MaskoView
+  ref={mascot}
+  style={{ width: 200, height: 200 }}
+  url="https://api.masko.ai/v1/canvases/CANVAS_ID/delivery?key=masko_app_..."
+/>;
+
+// Or with the app key apart:
+<MaskoView url="https://api.masko.ai/v1/canvases/CANVAS_ID/delivery" appKey="masko_app_..." />;
+```
+
+`url` takes the place of `delivery`: give one or the other. The ref, the
+events, `sound` and `autoPlay` work as with a delivery. A new `url` or
+`appKey` loads a new player. `getDelivery` is ignored with `url`. On iOS
+this is `MaskoPlayer(url:appKey:autoPlay:)`, on Android
+`MaskoPlayerView.loadCanvas(url, appKey, options)` (`../spec/player.md`,
+"A canvas from its URL").
+
 ## Install
 
 ```bash

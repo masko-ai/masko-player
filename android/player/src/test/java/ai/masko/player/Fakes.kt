@@ -288,6 +288,8 @@ internal class Rig(
     clip: String? = null,
     lengths: Map<String, Double> = emptyMap(),
     voiced: Set<String> = emptySet(),
+    /** A canvas read from its URL, played in place of [delivery]; its work runs in place. */
+    kept: KeptRelease? = null,
 ) {
     val time = FakeTime()
     /** Time the device spent in deep sleep: the wall clock moves, the main thread's timers do not. */
@@ -301,9 +303,15 @@ internal class Rig(
     }
     val sounds = FakeSounds(log)
     val player = if (seed == null) {
-        MaskoPlayer(delivery, stage, sounds, scheduler, { time.now }, { wallStart + time.now + slept }, options, makeEngine = makeEngine, clip = clip)
+        MaskoPlayer(
+            delivery, stage, sounds, scheduler, { time.now }, { wallStart + time.now + slept }, options,
+            makeEngine = makeEngine, clip = clip, kept = kept, background = kept?.let { InPlace },
+        )
     } else {
-        MaskoPlayer(delivery, stage, sounds, scheduler, { time.now }, { wallStart + time.now + slept }, options, seed, makeEngine, clip)
+        MaskoPlayer(
+            delivery, stage, sounds, scheduler, { time.now }, { wallStart + time.now + slept }, options, seed, makeEngine,
+            clip, kept, kept?.let { InPlace },
+        )
     }
     val heard = Heard().also { player.addListener(it) }
     val slot0 get() = stage.slots[0]
@@ -443,4 +451,10 @@ internal object TestDelivery {
         }
         """.trimIndent()
     }
+}
+
+/** Runs background work at once, on the calling thread. */
+internal object InPlace : Background {
+    override fun run(task: () -> Unit) = task()
+    override fun close() = Unit
 }
