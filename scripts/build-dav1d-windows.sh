@@ -99,6 +99,12 @@ if [[ "$have_sha" != "$DAV1D_SHA256" ]]; then
 fi
 rm -rf "$SRC"
 tar -xf "$TARBALL" -C "$WORK"
+# Visual Studio 2026's C compiler (MSVC 14.52, on GitHub's runners since 19 November
+# 2026) rejects dav1d 1.5.4's `defined(__clang__) && __has_include_next(...)` in
+# include/compat/msvc/stdatomic.h, since it no longer skips the undefined macro after a
+# false `&&`. clang-cl always has stdatomic.h, so the clang check alone is enough.
+sed -i.orig 's/^#if defined(__clang__) && __has_include_next(<stdatomic.h>)/#if defined(__clang__)/' \
+  "$SRC/include/compat/msvc/stdatomic.h"
 
 # THIRD_PARTY_NOTICES.md carries this license text, from scripts/licenses/.
 # Line endings aside: Git on Windows may check the copy out with CRLF.
