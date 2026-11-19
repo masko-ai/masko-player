@@ -160,6 +160,44 @@ nothing and reports `clip_failed`.
   A canvas read from its URL keeps its files instead, and `destroy()` leaves
   them.
 
+## A mascot on the Mac desktop
+
+A desktop pet, or any mascot that lives on the Mac's desktop instead of in a
+window of the app, goes in a `MaskoOverlay`, the package's second product
+(0.1.20 or later):
+
+```swift
+.product(name: "MaskoOverlay", package: "masko-player")
+```
+
+```swift
+import MaskoOverlay
+import MaskoPlayer
+
+let player = MaskoPlayer(url: canvasURL, appKey: appKey)
+let overlay = MaskoOverlay(player: player, size: CGSize(width: 200, height: 200))
+overlay.show()   // keep `overlay` for as long as the mascot shows
+```
+
+- It is a transparent `NSPanel` with no shadow, above every window and
+  full-screen app (level `.screenSaver`), on every desktop, and it never
+  takes the keyboard from the app in use. Without an `origin`, it starts in
+  the bottom right corner of the main screen.
+- It stays still while you swipe between desktops, like the menu bar and
+  the Dock, as Masko for Mac and the Masko creator pets do. That uses
+  macOS's private SkyLight framework: an app downloaded from the web may use
+  it, the Mac App Store refuses it, so leave this product out of App Store
+  apps. On a macOS without the framework, `MaskoOverlay.staysStillOnSwipe`
+  is false and the window slides with the desktops.
+- What the mascot does stays in the app: move the window with
+  `setFrameOrigin`, change its `level`, subclass it (the class is `open`), or
+  give it your own view with `MaskoOverlay(size:origin:)` and `contentView`.
+  It may sit partly off screen; `bringBackOnScreen()`, which `show()` and a
+  display change also call, moves it back to the corner when less than 48
+  points of it show.
+- `MaskoOverlay.keepStill(_:)` does the same for another window of the app,
+  such as a speech bubble or a menu beside the mascot.
+
 ## Layout
 
 - `Sources/MaskoPlayer/MaskoPlayer.swift`: the player: engine calls, commands,
@@ -177,6 +215,10 @@ nothing and reports `clip_failed`.
 - `MaskoPlayerView.swift`: the view, and which view shows a player.
 - `Sounds.swift`, `Clock.swift`, `MaskoView.swift`.
 - `PrivacyInfo.xcprivacy`: the privacy manifest, a resource of the target.
+- `Sources/MaskoOverlay/`: the `MaskoOverlay` product. `MaskoOverlay.swift`
+  is the window; `OverlaySpaces.swift` moves windows into a layer above the
+  desktops with SkyLight, adapted from SkyLightWindow by Lakr Aream (MIT, its
+  license at the top of the file).
 - `Generated/masko_player_ffi.swift`: the UniFFI bindings, written by the build
   script. Do not edit it.
 - `MaskoPlayerFFI.xcframework`: the engine as a static library for macOS
@@ -197,7 +239,7 @@ the release zip otherwise.
 
 ```bash
 scripts/build-apple.sh   # the xcframework and the Swift bindings
-swift test               # scenarios, player, file cache and real video on macOS
+swift test               # scenarios, player, file cache, real video and MaskoOverlay on macOS
 xcodebuild test -scheme MaskoPlayer \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
 xcodebuild test -scheme MaskoPlayer \

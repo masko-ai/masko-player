@@ -21,14 +21,16 @@ Install:
   runs in Electron too ([examples/electron](examples/electron)).
 - **Apple**: add `https://github.com/masko-ai/masko-player` from `0.1.0` in
   Xcode or `Package.swift`, product `MaskoPlayer`
-  ([apple/README.md](apple/README.md)).
+  ([apple/README.md](apple/README.md)). A mascot on the Mac desktop, such as
+  a desktop pet, goes in a `MaskoOverlay` window, from the product of that
+  name (0.1.20 or later).
 - **React Native and Expo**: `npm install @masko/player-react-native`
   ([react-native/README.md](react-native/README.md)); it carries the iOS and
   Android players.
 - **Flutter**: `flutter pub add masko_player`
   ([flutter/README.md](flutter/README.md)); it carries the iOS and Android
   players.
-- **Android**: `implementation("ai.masko:player:0.1.19")` from Maven Central
+- **Android**: `implementation("ai.masko:player:0.1.20")` from Maven Central
   ([android/README.md](android/README.md)).
 - **ESP32-S3 boards**: the ESP-IDF components in `esp32/`
   ([esp32/README.md](esp32/README.md)), written by Marvin Schmid, play

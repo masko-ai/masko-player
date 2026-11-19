@@ -34,7 +34,10 @@ let package = Package(
     name: "MaskoPlayer",
     platforms: [.iOS(.v15), .macOS(.v13), .macCatalyst(.v15), .visionOS(.v1)],
     products: [
-        .library(name: "MaskoPlayer", targets: ["MaskoPlayer"])
+        .library(name: "MaskoPlayer", targets: ["MaskoPlayer"]),
+        // A Mac window for a mascot on the desktop that stays still while desktops swipe.
+        // Separate, because it uses a private macOS framework that the Mac App Store refuses.
+        .library(name: "MaskoOverlay", targets: ["MaskoOverlay"]),
     ],
     targets: [
         engine,
@@ -44,6 +47,16 @@ let package = Package(
             dependencies: ["MaskoPlayerFFI", "Dav1d"],
             path: "apple/Sources/MaskoPlayer",
             resources: [.copy("PrivacyInfo.xcprivacy")]
+        ),
+        .target(
+            name: "MaskoOverlay",
+            dependencies: ["MaskoPlayer"],
+            path: "apple/Sources/MaskoOverlay"
+        ),
+        .testTarget(
+            name: "MaskoOverlayTests",
+            dependencies: ["MaskoOverlay"],
+            path: "apple/Tests/MaskoOverlayTests"
         ),
         .testTarget(
             name: "MaskoPlayerTests",

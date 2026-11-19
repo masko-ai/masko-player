@@ -1,3 +1,9 @@
+## 0.1.20
+
+- No change to the Flutter API or to how mascots play. The Swift package
+  adds `MaskoOverlay`, a window for a mascot on the Mac desktop that stays
+  still while desktops swipe.
+
 ## 0.1.19
 
 - `MaskoView(url: ...)` plays a canvas from its URL, with no backend: the
