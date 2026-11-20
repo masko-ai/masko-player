@@ -1,3 +1,10 @@
+## 0.1.23
+
+- No change to the Flutter API. On Android the player asks for AV1 clips
+  only when the phone decodes AV1 in hardware; with only Android's software
+  decoder it plays the stacked H.264 files, since on some phones that
+  decoder's frames reach the screen as stripes. Thanks to Yossi Elkrief.
+
 ## 0.1.22
 
 - No change to the Flutter API. A clip that fails to load or play no longer
