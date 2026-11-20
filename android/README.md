@@ -36,8 +36,8 @@ Android plays the `stacked` or `av1` file of each edge (colour above,
 transparency below), drawn with a shader. Fetch the release delivery with
 `target=android` and `MaskoPlayer.formats`
 (`GET /v1/canvases/{canvasId}/releases/{releaseId}/delivery?target=android&formats=${MaskoPlayer.formats}`
-on the Masko API): it lists only those files, AV1 where the phone has an AV1
-decoder (Android 10 and later), two to three times lighter than the H.264
+on the Masko API): it lists only those files, AV1 where the phone decodes AV1
+in hardware (`MaskoPlayer.av1Decoder`), two to three times lighter than the H.264
 stacked files (`../spec/player.md`, "Asking for AV1"). A release made before the API
 put stacked files in releases has none; there every clip reports
 `clipFailed`, so the engine reports `error` `clip_failed`, skips each move
