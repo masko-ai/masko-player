@@ -1,3 +1,8 @@
+## 0.1.21
+
+- No change to the Flutter API or to how mascots play. The web player no
+  longer blinks for one frame when it changes clips in Chrome.
+
 ## 0.1.20
 
 - No change to the Flutter API or to how mascots play. The Swift package

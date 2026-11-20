@@ -1,5 +1,5 @@
 group = "ai.masko"
-version = "0.1.20"
+version = "0.1.21"
 
 buildscript {
     val kotlinVersion = "2.4.0"

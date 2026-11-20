@@ -8,6 +8,62 @@ const HAVE_CURRENT_DATA = 2;
 const MIN_RATE = 0.0625;
 const MAX_RATE = 16;
 
+/**
+ * Frames a hidden layer stays on screen under the one shown in its place.
+ * Chrome can composite the frame of a swap before it draws the newly shown
+ * video, so hiding the old one in the same frame left one empty frame, a
+ * blink. Two frames later the new one is drawn; the old one shows a still
+ * frame of itself until then, never nothing.
+ */
+const HIDE_AFTER_FRAMES = 2;
+
+/** Runs `fn` after `frames` animation frames, or at once without a window (tests). */
+function afterFrames(el: Element, frames: number, fn: () => void): void {
+  const view = el.ownerDocument?.defaultView;
+  if (!view || typeof view.requestAnimationFrame !== 'function') {
+    fn();
+    return;
+  }
+  const step = (left: number) => (left === 0 ? fn() : view.requestAnimationFrame(() => step(left - 1)));
+  step(frames);
+}
+
+/**
+ * Shows a layer at once and hides it `HIDE_AFTER_FRAMES` frames later. A
+ * later show, or a load into a hidden layer, cancels a hide still waiting.
+ */
+class Visibility {
+  private token = 0;
+  private readonly el: HTMLElement;
+
+  constructor(el: HTMLElement) {
+    this.el = el;
+  }
+
+  get on(): boolean {
+    return this.el.dataset.visible === 'true';
+  }
+
+  set(on: boolean): void {
+    const token = ++this.token;
+    this.el.dataset.visible = on ? 'true' : 'false';
+    if (on) {
+      this.el.style.opacity = '1';
+      return;
+    }
+    afterFrames(this.el, HIDE_AFTER_FRAMES, () => {
+      if (token === this.token) this.el.style.opacity = '0';
+    });
+  }
+
+  /** Hides now: the layer is about to change what it holds. */
+  hideNow(): void {
+    this.token++;
+    this.el.dataset.visible = 'false';
+    this.el.style.opacity = '0';
+  }
+}
+
 type FrameVideo = HTMLVideoElement & {
   requestVideoFrameCallback?: (cb: () => void) => number;
   cancelVideoFrameCallback?: (id: number) => void;
@@ -17,9 +73,11 @@ type FrameVideo = HTMLVideoElement & {
 export class DomSlot implements VideoSlot {
   readonly el: FrameVideo;
   src: string | null = null;
+  private readonly visibility: Visibility;
 
   constructor(el: HTMLVideoElement) {
     this.el = el;
+    this.visibility = new Visibility(el);
     el.muted = true;
     el.defaultMuted = true;
     el.playsInline = true;
@@ -32,7 +90,7 @@ export class DomSlot implements VideoSlot {
     el.setAttribute('aria-hidden', 'true');
     // Page CSS must not turn the swap into a crossfade.
     el.style.transition = 'none';
-    this.setVisible(false);
+    this.visibility.hideNow();
   }
 
   get time(): number {
@@ -40,6 +98,8 @@ export class DomSlot implements VideoSlot {
   }
 
   load(src: string): void {
+    // A slot swapped out a frame ago still shows; its next clip must not.
+    if (!this.visibility.on) this.visibility.hideNow();
     if (this.src === src) {
       this.el.currentTime = 0;
       return;
@@ -78,8 +138,7 @@ export class DomSlot implements VideoSlot {
   }
 
   setVisible(on: boolean): void {
-    this.el.style.opacity = on ? '1' : '0';
-    this.el.dataset.visible = on ? 'true' : 'false';
+    this.visibility.set(on);
   }
 
   onFrame(fn: () => void): () => void {
@@ -163,14 +222,16 @@ export class DomStill implements StillLayer {
   readonly el: HTMLImageElement;
   /** Counts loads: an older image that decodes after a newer one asked for is not shown. */
   private loads = 0;
+  private readonly visibility: Visibility;
 
   constructor(el: HTMLImageElement) {
     this.el = el;
+    this.visibility = new Visibility(el);
     el.alt = '';
     el.decoding = 'async';
     el.draggable = false;
     el.style.transition = 'none';
-    this.setVisible(false);
+    this.visibility.hideNow();
   }
 
   async load(url: string): Promise<void> {
@@ -180,14 +241,14 @@ export class DomStill implements StillLayer {
     img.src = url;
     await img.decode();
     if (n !== this.loads) return;
+    if (!this.visibility.on) this.visibility.hideNow();
     this.el.src = url;
     // The visible element decodes from the image cache.
     await this.el.decode().catch(() => undefined);
   }
 
   setVisible(on: boolean): void {
-    this.el.style.opacity = on ? '1' : '0';
-    this.el.dataset.visible = on ? 'true' : 'false';
+    this.visibility.set(on);
   }
 }
 

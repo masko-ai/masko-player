@@ -135,7 +135,7 @@ has. A new `url` or `appKey` loads a new player.
 
 ```yaml
 dependencies:
-  masko_player: ^0.1.20
+  masko_player: ^0.1.21
 ```
 
 The package carries both native players: the Swift player with the

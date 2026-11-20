@@ -46,8 +46,12 @@ runs everything that was due first.
     or let a native loop run on).
   - Otherwise use the other of two persistent video slots: load the clip (or
     take it from the preload cache), wait until its **first frame is
-    decoded**, then make it visible and hide the old slot in the same frame.
-    No crossfade, ever. Pause the old slot after the swap.
+    decoded**, then make it visible. Hide the old slot two frames later, not
+    in the same frame: a browser can composite the swap before it draws the
+    new video, and an old slot hidden at once leaves one empty frame. Until
+    then the old slot shows its last frame under or over the new one. A slot
+    that loads another clip before then hides at once. No crossfade, ever.
+    Pause the old slot after the swap.
   - Report `clipShown(edge, now)` when this clip's first frame is on screen:
     at the swap, or at once when a pose clip restarts in place. Report it
     once per showing; the engine counts the clip's safety net from it, and

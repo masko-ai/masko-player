@@ -273,3 +273,47 @@ test('slot: a playback rate the browser refuses is clamped, never thrown', async
     assert.equal(el.defaultPlaybackRate, played);
   }
 });
+
+/** A window whose animation frames run when the test says. */
+function frames() {
+  let queue: Array<() => void> = [];
+  const view = {
+    requestAnimationFrame(fn: () => void): number {
+      queue.push(fn);
+      return queue.length;
+    }
+  };
+  return {
+    doc: { defaultView: view },
+    next(): void {
+      const run = queue;
+      queue = [];
+      for (const fn of run) fn();
+    }
+  };
+}
+
+test('slot: a slot swapped out stays drawn two frames, so a swap never shows an empty frame', () => {
+  const f = frames();
+  const el = Object.assign(new FakeVideo(), { ownerDocument: f.doc, src: '', currentTime: 0 });
+  const slot = new DomSlot(el as unknown as HTMLVideoElement);
+  assert.equal(el.style.opacity, '0', 'a new slot starts hidden, at once');
+  slot.setVisible(true);
+  assert.equal(el.style.opacity, '1');
+  slot.setVisible(false);
+  assert.equal(el.dataset.visible, 'false', 'hidden for the player at once');
+  f.next();
+  assert.equal(el.style.opacity, '1', 'still drawn one frame later');
+  f.next();
+  assert.equal(el.style.opacity, '0', 'gone two frames later');
+
+  slot.setVisible(false);
+  slot.setVisible(true);
+  f.next();
+  f.next();
+  assert.equal(el.style.opacity, '1', 'shown again before the hide: it stays');
+
+  slot.setVisible(false);
+  slot.load('next.webm');
+  assert.equal(el.style.opacity, '0', 'a slot loading its next clip hides at once');
+});
