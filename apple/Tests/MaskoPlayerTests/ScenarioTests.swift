@@ -36,7 +36,7 @@ final class ScenarioTests: XCTestCase {
             }
         }
         print("\(paths.count - bad) of \(paths.count) scenarios pass")
-        XCTAssertEqual(paths.count, 91, "the number of scenarios changed")
+        XCTAssertEqual(paths.count, 93, "the number of scenarios changed")
         XCTAssertEqual(bad, 0, "\(bad) scenarios failed")
     }
 
@@ -256,6 +256,8 @@ final class ScenarioTests: XCTestCase {
             try p.runToEnd(moving: true)
         } else if let edge = step["failClip"]?.string {
             e.markUnplayable(edge: edge)
+        } else if let edge = step["loadsAgain"]?.string {
+            e.markPlayable(edge: edge)
         } else if let edge = step["noEndSignal"]?.string {
             p.noEnd.insert(edge)
         } else if step["reset"] != nil {

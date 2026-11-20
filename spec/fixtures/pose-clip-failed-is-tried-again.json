@@ -1,0 +1,102 @@
+{
+  "name": "pose-clip-failed-is-tried-again",
+  "about": "A pose clip that cannot play is loaded again 1 s after it failed, then after 2 s, 4 s and longer waits, and plays again once its file loads, though the mascot never leaves the pose.",
+  "rules": ["9.5", "9.7"],
+  "canvas": "otto",
+  "steps": [
+    {
+      "failClip": "loop-idle",
+      "expect": {
+        "clock": 0,
+        "pose": null,
+        "clip": null,
+        "events": []
+      }
+    },
+    {
+      "start": true,
+      "expect": {
+        "clock": 0,
+        "pose": "idle",
+        "clip": "still:idle",
+        "next": null,
+        "events": ["pose:idle", "error:clip_failed", "shown:still:idle"]
+      }
+    },
+    {
+      "advance": 4000,
+      "expect": {
+        "clock": 4000,
+        "pose": "idle",
+        "clip": "still:idle",
+        "next": null,
+        "events": ["error:clip_failed", "shown:still:idle"],
+        "preloaded": ["loop-idle"],
+        "values": {
+          "node::loopCount": 1
+        }
+      }
+    },
+    {
+      "advance": 4000,
+      "expect": {
+        "clock": 8000,
+        "pose": "idle",
+        "clip": "still:idle",
+        "events": ["error:clip_failed", "shown:still:idle"],
+        "preloaded": ["loop-idle"]
+      }
+    },
+    {
+      "advance": 4000,
+      "expect": {
+        "clock": 12000,
+        "pose": "idle",
+        "clip": "still:idle",
+        "events": ["error:clip_failed", "shown:still:idle"],
+        "preloaded": ["loop-idle"]
+      }
+    },
+    {
+      "advance": 4000,
+      "expect": {
+        "clock": 16000,
+        "pose": "idle",
+        "clip": "still:idle",
+        "events": ["error:clip_failed", "shown:still:idle"],
+        "preloaded": []
+      }
+    },
+    {
+      "loadsAgain": "loop-idle",
+      "expect": {
+        "clock": 16000,
+        "clip": "still:idle",
+        "events": []
+      }
+    },
+    {
+      "advance": 4000,
+      "expect": {
+        "clock": 20000,
+        "pose": "idle",
+        "clip": "loop-idle",
+        "next": null,
+        "events": ["shown:loop-idle"],
+        "preloaded": [],
+        "values": {
+          "node::loopCount": 5
+        }
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 24000,
+        "pose": "idle",
+        "clip": "loop-idle",
+        "events": ["shown:loop-idle"]
+      }
+    }
+  ]
+}

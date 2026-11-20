@@ -208,6 +208,7 @@ function act(p: IdealPlayer, step: Obj): void {
   else if ('loopEnded' in step) p.runToEnd(false);
   else if ('clipEnded' in step) p.runToEnd(true);
   else if ('failClip' in step) e.markUnplayable(step.failClip as string);
+  else if ('loadsAgain' in step) e.markPlayable(step.loadsAgain as string);
   else if ('noEndSignal' in step) p.noEnd.add(step.noEndSignal as string);
   else if ('reset' in step) commands = e.reset(now);
   else if ('showPose' in step) commands = e.previewShowPose(step.showPose as string, now);

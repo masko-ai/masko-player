@@ -9,8 +9,8 @@ import PackageDescription
 // that adds this package by URL gets no build there (the xcframework is
 // git-ignored), so it downloads the release zip; scripts/release-apple.sh
 // writes its URL and checksum here.
-let releaseURL = "https://github.com/masko-ai/masko-player/releases/download/0.1.17/MaskoPlayerFFI.xcframework.zip"
-let releaseChecksum = "ed87eff5f05f70ef87e30ddb0fed87792bf8ddf6e0c6d03079c0b39fae2cdee3"
+let releaseURL = "https://github.com/masko-ai/masko-player/releases/download/0.1.22/MaskoPlayerFFI.xcframework.zip"
+let releaseChecksum = "c1c133cb796fdf3ec9b280c0043d88cf8ba3a0ae34354d317afce7d3f3ff5c4b"
 
 let localEngine = "apple/MaskoPlayerFFI.xcframework"
 let engine: Target =
@@ -21,8 +21,8 @@ let engine: Target =
 // dav1d decodes AV1 on devices without an AV1 decoder. Like the engine, it
 // is the local xcframework when built (scripts/build-dav1d-apple.sh), else its
 // release zip; scripts/release-apple.sh writes that zip's URL and checksum.
-let dav1dReleaseURL = "https://github.com/masko-ai/masko-player/releases/download/0.1.17/dav1d.xcframework.zip"
-let dav1dReleaseChecksum = "b76f7dc61cbb17af03812832cf3dab74a174d2d3f1ae7d9fb08269be78d8b851"
+let dav1dReleaseURL = "https://github.com/masko-ai/masko-player/releases/download/0.1.22/dav1d.xcframework.zip"
+let dav1dReleaseChecksum = "7350930e95b666fa2864b83db039afe9a824ae3b5614de705b023447426d1a98"
 
 let localDav1d = "apple/dav1d.xcframework"
 let dav1d: Target =

@@ -853,7 +853,10 @@ public final class MaskoPlayer {
             guard let self, !self.destroyed else { return }
             if local == nil {
                 self.markUnplayable(edge)
-            } else if self.failed.remove(edge) != nil {
+            } else {
+                // Always, even for a clip this player never found unplayable:
+                // the engine may have, and retries it this way (rules.md 9.5).
+                self.failed.remove(edge)
                 self.engine?.markPlayable(edge: edge)
             }
         }

@@ -234,6 +234,10 @@ private fun act(p: IdealPlayer, step: JSONObject) {
             e.markUnplayable(step.getString("failClip"))
             emptyList()
         }
+        step.has("loadsAgain") -> {
+            e.markPlayable(step.getString("loadsAgain"))
+            emptyList()
+        }
         step.has("noEndSignal") -> {
             p.noEnd += step.getString("noEndSignal")
             emptyList()

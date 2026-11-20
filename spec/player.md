@@ -29,7 +29,7 @@ rule itself.
 | The clip on screen plays its last frame      | `clipEnded(edge, now)`                |
 | A clip being shown cannot play               | `clipFailed(edge, now)`               |
 | A preload fails                              | `markUnplayable(edge)`                |
-| A clip marked unplayable loads later         | `markPlayable(edge)`                  |
+| A preload's file loads (always, rules 9.5)   | `markPlayable(edge)`                  |
 | The app calls `reset()`                      | `reset(now)`                          |
 | An editor calls `preview.showPose` / `playMove` | `previewShowPose` / `previewPlayMove` |
 

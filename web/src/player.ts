@@ -969,7 +969,12 @@ export class Player {
       }
       this.cache.preload(file.key, file.url).then(
         (cached) => {
-          if (cached && this.unplayable.delete(edge)) this.engine?.markPlayable(edge);
+          // Always, even for a clip this player never found unplayable: the
+          // engine may have, and retries it this way (rules.md 9.5).
+          if (cached) {
+            this.unplayable.delete(edge);
+            this.engine?.markPlayable(edge);
+          }
         },
         () => {
           this.failedKeys.add(file.key);

@@ -26,6 +26,10 @@ const LOAD_MS: u64 = 10_000;
 /// following moves from them for the rest of that second (rules.md 9.4).
 const MAX_CHAIN: u32 = 32;
 const CHAIN_MS: u64 = 1000;
+/// A pose clip that cannot play is loaded again this long after it failed,
+/// then after twice as long each time, up to `RETRY_MAX_MS` (rules.md 9.5).
+const RETRY_FIRST_MS: u64 = 1000;
+const RETRY_MAX_MS: u64 = 30_000;
 
 const FAMILIES: &[&str] = &[
     "rest",
@@ -377,6 +381,9 @@ pub struct Engine {
     now: u64,
     out: Vec<Command>,
     unplayable: BTreeSet<usize>,
+    /// Pose clips that failed: when to ask for their file again, and the
+    /// wait after that (rules.md 9.5).
+    retries: BTreeMap<usize, (u64, u64)>,
     last_extra: BTreeMap<String, usize>,
     chain: (u32, u64),
     held: BTreeMap<String, Value>,
@@ -408,6 +415,7 @@ impl Engine {
             now: 0,
             out: Vec::new(),
             unplayable: BTreeSet::new(),
+            retries: BTreeMap::new(),
             last_extra: BTreeMap::new(),
             chain: (0, 0),
             held: BTreeMap::new(),
@@ -1409,9 +1417,23 @@ impl Engine {
             .copied()
             .filter(|&i| self.g.edges[i].groups.is_empty())
             .collect();
-        let main = self.main_clip(&p)?;
+        let mut main = self.main_clip(&p)?;
+        if self.unplayable.contains(&main) {
+            // A main loop that cannot play gives way to the first extra that
+            // can (rules.md 7.2, 9.5).
+            if let Some(&other) = plain
+                .iter()
+                .find(|&&i| i != main && !self.unplayable.contains(&i))
+            {
+                main = other;
+            }
+        }
         if ended == Some(main) {
-            let extras: Vec<usize> = plain.iter().copied().filter(|&i| i != main).collect();
+            let extras: Vec<usize> = plain
+                .iter()
+                .copied()
+                .filter(|&i| i != main && !self.unplayable.contains(&i))
+                .collect();
             if !extras.is_empty() {
                 let r = self.rolls.next();
                 if r < 1.0 / 3.0 {
@@ -1433,6 +1455,7 @@ impl Engine {
     }
 
     fn show_pose(&mut self, choice: Option<usize>) {
+        self.retry_failed_clips();
         match choice {
             None => self.show_still(STILL_MS),
             Some(i) if self.unplayable.contains(&i) => {
@@ -1441,6 +1464,33 @@ impl Engine {
                 self.stand_in(i);
             }
             Some(i) => self.show_pose_clip(i),
+        }
+    }
+
+    /// Asks the player to load again, when their wait is over, the clips of
+    /// this pose that cannot play; a file that loads makes its clip playable
+    /// for the next choice (rules.md 9.5).
+    fn retry_failed_clips(&mut self) {
+        let Some(p) = self.pose.clone() else {
+            return;
+        };
+        let failed: Vec<usize> = self
+            .g
+            .pose_clips(&p)
+            .filter(|&i| self.g.edges[i].has_video && self.unplayable.contains(&i))
+            .collect();
+        for i in failed {
+            let now = self.now;
+            let (at, wait) = *self
+                .retries
+                .entry(i)
+                .or_insert((now.saturating_add(RETRY_FIRST_MS), RETRY_FIRST_MS));
+            if now >= at {
+                let wait = wait.saturating_mul(2).min(RETRY_MAX_MS);
+                self.retries.insert(i, (now.saturating_add(wait), wait));
+                let edge = self.g.edges[i].id.clone();
+                self.out.push(Command::Preload { edge });
+            }
         }
     }
 
@@ -1541,8 +1591,10 @@ impl Engine {
     fn clip_end(&mut self, ended: Option<usize>) {
         let p = self.pose.clone().unwrap_or_default();
         self.loop_count = self.loop_count.saturating_add(1);
-        if ended.is_some() {
+        if let Some(i) = ended {
             self.last_ended = ended;
+            // It played to its end: a later failure waits from the start.
+            self.retries.remove(&i);
         }
         if self.consider(Boundary::End) {
             return;

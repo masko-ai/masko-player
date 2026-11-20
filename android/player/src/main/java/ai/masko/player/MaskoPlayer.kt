@@ -670,7 +670,10 @@ class MaskoPlayer internal constructor(
     private fun playable(edge: String, ok: Boolean) {
         if (!ok) {
             if (unplayable.add(edge)) engineCall(Unit) { engine.markUnplayable(edge) }
-        } else if (unplayable.remove(edge)) {
+        } else {
+            // Always, even for a clip this player never found unplayable: the
+            // engine may have, and retries it this way (rules.md 9.5).
+            unplayable.remove(edge)
             engineCall(Unit) { engine.markPlayable(edge) }
         }
     }

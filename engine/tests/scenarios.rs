@@ -258,6 +258,9 @@ fn act(p: &mut Player, step: &Value) {
     } else if let Some(e) = step.get("failClip") {
         p.engine.mark_unplayable(e.as_str().unwrap());
         Vec::new()
+    } else if let Some(e) = step.get("loadsAgain") {
+        p.engine.mark_playable(e.as_str().unwrap());
+        Vec::new()
     } else if let Some(e) = step.get("noEndSignal") {
         p.no_end.insert(e.as_str().unwrap().to_owned());
         Vec::new()

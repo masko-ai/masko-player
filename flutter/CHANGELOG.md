@@ -1,3 +1,12 @@
+## 0.1.22
+
+- No change to the Flutter API. A clip that fails to load or play no longer
+  leaves the mascot on its still picture: the player loads it again after
+  1 s, 2 s, 4 s and longer waits up to 30 s, even while the mascot stays on
+  its pose, and plays it again once its file loads. Meanwhile a pose whose
+  main loop cannot play plays another of its loops, and the extra roll
+  skips loops that cannot play.
+
 ## 0.1.21
 
 - No change to the Flutter API or to how mascots play. The web player no

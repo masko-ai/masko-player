@@ -442,13 +442,15 @@ Among a pose's pose clips that have a clip, in canvas order:
   else, if the clip that ended was the main loop and the pose has extras, the
   extra roll (7.3); else the main loop.
 
-A pose clip that is chosen again simply plays again.
+A pose clip that is chosen again simply plays again. A main loop that
+cannot play (9.5) gives way to the pose's first extra that can, in canvas
+order, which then counts as the main loop for this choice.
 
 ### 7.3 The extra roll
 
 The engine draws one number r in [0, 1) from the host's random source. When
 r < 1/3, it plays `pool[floor(r * 3 * pool.length)]`, where the pool is the
-pose's extras without the one this pose played last (all its extras if that
+pose's extras that can play (9.5), without the one this pose played last (all its extras if that
 leaves none). Otherwise it plays the main loop. The extra plays right after
 the main loop whose end drew the number. The engine remembers the last extra
 of each pose for as long as it runs. This is the only rule that uses
@@ -541,6 +543,16 @@ own, so a pose whose clips fail cannot flicker through stills. Either way
 the failure is reported as `error` `clip_failed` (or `clip_timeout`, 9.3)
 and the pose keeps counting loops. A fire the failed clip claimed (3.3) is
 spent when the clip or still that plays in its place ends.
+
+A pose clip that failed is tried again, even while the mascot stays on its
+pose. Whenever the pose chooses a clip (7.2), the engine asks the player to
+preload (9.7) each of the pose's clips that cannot play and whose wait is
+over: the first wait is 1 s from the first choice after the failure, and
+each next wait is twice the last, up to 30 s. The player reports the clip
+playable again (`markPlayable`, `player.md`) as soon as its file loads,
+whether or not the player itself found it unplayable, and the pose can
+choose it from its next choice on. The waits start over once the clip plays
+to its end.
 
 ### 9.6 Sound
 

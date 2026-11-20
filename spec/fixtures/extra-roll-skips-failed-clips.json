@@ -1,7 +1,7 @@
 {
-  "name": "pose-clip-fails-replays-previous",
-  "about": "When a pose's next clip fails, the clip that just played plays again.",
-  "rules": ["9.5"],
+  "name": "extra-roll-skips-failed-clips",
+  "about": "An extra that cannot play is left out of the extra roll: the roll picks among the extras that can.",
+  "rules": ["7.3", "9.5"],
   "canvas": "ko-coffee",
   "patch": {
     "addEdges": [
@@ -56,9 +56,9 @@
       "expect": {
         "clock": 4000,
         "pose": "idle",
-        "clip": "loop-idle",
+        "clip": "loop-idle-yawn",
         "next": null,
-        "events": ["error:clip_failed", "shown:loop-idle"]
+        "events": ["shown:loop-idle-yawn"]
       }
     }
   ]

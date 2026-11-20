@@ -1,0 +1,70 @@
+{
+  "name": "pose-main-loop-fails-extra-plays",
+  "about": "A pose whose main loop cannot play plays its first extra that can in its place, never rolls an extra that cannot play, and goes back to the main loop once its file loads again.",
+  "rules": ["7.2", "7.3", "9.5"],
+  "canvas": "otto",
+  "patch": {
+    "addEdges": [
+      {
+        "id": "idle-look",
+        "source": "idle",
+        "target": "idle",
+        "isLoop": true,
+        "duration": 4,
+        "videos": {
+          "hevc": "https://example.invalid/idle-look.mov",
+          "webm": "https://example.invalid/idle-look.webm"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "failClip": "loop-idle",
+      "expect": {
+        "clock": 0,
+        "events": []
+      }
+    },
+    {
+      "start": true,
+      "expect": {
+        "clock": 0,
+        "pose": "idle",
+        "clip": "idle-look",
+        "next": null,
+        "events": ["pose:idle", "shown:idle-look"]
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 4000,
+        "pose": "idle",
+        "clip": "idle-look",
+        "next": null,
+        "events": ["shown:idle-look"],
+        "preloaded": ["loop-idle"]
+      }
+    },
+    {
+      "loadsAgain": "loop-idle",
+      "expect": {
+        "clock": 4000,
+        "clip": "idle-look",
+        "events": []
+      }
+    },
+    {
+      "loopEnded": true,
+      "expect": {
+        "clock": 8000,
+        "pose": "idle",
+        "clip": "loop-idle",
+        "next": null,
+        "events": ["shown:loop-idle"],
+        "preloaded": []
+      }
+    }
+  ]
+}
